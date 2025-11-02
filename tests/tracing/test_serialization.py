@@ -118,13 +118,15 @@ def test_traced_with_datetime_input(span_capture: SpanCapture):
 
 def test_traced_with_complex_return_value(span_capture: SpanCapture):
     """Test tracing with complex return value."""
+    from typing import Any, Dict
+
     from pydantic import BaseModel
 
     from uipath.core.tracing.decorators import traced
 
     class Result(BaseModel):
         success: bool
-        data: dict
+        data: Dict[str, Any]
 
     @traced(name="get_result")
     def get_result():
@@ -145,10 +147,12 @@ def test_traced_with_complex_return_value(span_capture: SpanCapture):
 
 def test_traced_with_set_and_tuple(span_capture: SpanCapture):
     """Test tracing with set and tuple inputs."""
+    from typing import Set, Tuple
+
     from uipath.core.tracing.decorators import traced
 
     @traced(name="process_collections")
-    def process_collections(items: set, pair: tuple):
+    def process_collections(items: Set[int], pair: Tuple[int, ...]) -> int:
         return len(items) + len(pair)
 
     result = process_collections({1, 2, 3}, (4, 5))
