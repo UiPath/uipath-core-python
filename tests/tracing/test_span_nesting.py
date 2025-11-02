@@ -1,7 +1,6 @@
 """Test span nesting behavior for traced decorators."""
 
 import pytest
-from opentelemetry import trace
 
 from tests.conftest import SpanCapture
 

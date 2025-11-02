@@ -5,7 +5,6 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.sdk.trace.sampling import ALWAYS_ON, ParentBased
 
 
 class SpanCapture:
@@ -13,7 +12,7 @@ class SpanCapture:
 
     def __init__(self):
         self.exporter = InMemorySpanExporter()
-        self.provider = TracerProvider(sampler=ParentBased(root=ALWAYS_ON))
+        self.provider = TracerProvider()
         self.provider.add_span_processor(SimpleSpanProcessor(self.exporter))
         trace.set_tracer_provider(self.provider)
 
