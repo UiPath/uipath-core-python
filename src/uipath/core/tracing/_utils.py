@@ -2,8 +2,6 @@
 
 import inspect
 import json
-import random
-import uuid
 from collections.abc import Callable
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
@@ -73,50 +71,6 @@ def _simple_serialize_defaults(obj):
         return obj
 
     return str(obj)
-
-
-def span_id_to_uuid4(span_id: int) -> uuid.UUID:
-    """Convert a 64-bit span ID to a valid UUID4 format.
-
-    Creates a UUID where:
-    - The 64 least significant bits contain the span ID
-    - The UUID version (bits 48-51) is set to 4
-    - The UUID variant (bits 64-65) is set to binary 10
-    """
-    # Generate deterministic high bits using the span_id as seed
-    temp_random = random.Random(span_id)
-    high_bits = temp_random.getrandbits(64)
-
-    # Combine high bits and span ID into a 128-bit integer
-    combined = (high_bits << 64) | span_id
-
-    # Set version to 4 (UUID4)
-    combined = (combined & ~(0xF << 76)) | (0x4 << 76)
-
-    # Set variant to binary 10
-    combined = (combined & ~(0x3 << 62)) | (2 << 62)
-
-    # Convert to hex string in UUID format
-    hex_str = format(combined, "032x")
-    return uuid.UUID(hex_str)
-
-
-def trace_id_to_uuid4(trace_id: int) -> uuid.UUID:
-    """Convert a 128-bit trace ID to a valid UUID4 format.
-
-    Modifies the trace ID to conform to UUID4 requirements:
-    - The UUID version (bits 48-51) is set to 4
-    - The UUID variant (bits 64-65) is set to binary 10
-    """
-    # Set version to 4 (UUID4)
-    uuid_int = (trace_id & ~(0xF << 76)) | (0x4 << 76)
-
-    # Set variant to binary 10
-    uuid_int = (uuid_int & ~(0x3 << 62)) | (2 << 62)
-
-    # Convert to hex string in UUID format
-    hex_str = format(uuid_int, "032x")
-    return uuid.UUID(hex_str)
 
 
 def format_args_for_trace_json(

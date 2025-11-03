@@ -3,11 +3,12 @@
 import inspect
 import json
 import logging
+import random
 from functools import wraps
 from typing import Any, Callable, Optional
 
 from opentelemetry import trace
-from opentelemetry.trace import NonRecordingSpan
+from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 from opentelemetry.trace.status import StatusCode
 
 from uipath.core.tracing._utils import (
@@ -36,10 +37,6 @@ def _opentelemetry_traced(
         def get_span():
             if not recording:
                 # Create a valid but non-sampled trace context
-                import random
-
-                from opentelemetry.trace import SpanContext, TraceFlags
-
                 # Generate a valid trace ID (not INVALID)
                 trace_id = random.getrandbits(128)
                 span_id = random.getrandbits(64)
@@ -277,8 +274,6 @@ def traced(
         # Decorate the function with only supported parameters
         decorated_func = tracer_impl(**supported_params)(func)
 
-        # Register both original and decorated function with parameters
-        UiPathTracingManager.register_traced_function(func, decorated_func, params)
         return decorated_func
 
     return decorator
