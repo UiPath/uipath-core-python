@@ -1,7 +1,7 @@
 """Tracing manager for handling tracer implementations and function registry."""
 
 import logging
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, Optional
 
 from opentelemetry import context, trace
 from opentelemetry.trace import set_span_in_context
@@ -11,10 +11,6 @@ logger = logging.getLogger(__name__)
 
 class UiPathTracingManager:
     """Static utility class to manage tracing implementations and decorated functions."""
-
-    # Registry to track original functions, decorated functions, and their parameters
-    # Each entry is (original_func, decorated_func, params)
-    _traced_registry: List[Tuple[Callable[..., Any], Callable[..., Any], Any]] = []
 
     _current_span_provider: Optional[Callable[[], Any]] = None
 
@@ -41,6 +37,7 @@ class UiPathTracingManager:
         """
         # Always use the currently active OTel span if valid (recursion / children)
         current_span = trace.get_current_span()
+
         if current_span is not None and current_span.get_span_context().is_valid:
             return set_span_in_context(current_span)
 
@@ -54,18 +51,9 @@ class UiPathTracingManager:
                 logger.warning(f"Error getting current span from provider: {e}")
 
         # Last fallback
-        return context.get_current()
+        ctx = context.get_current()
 
-    @classmethod
-    def register_traced_function(cls, original_func, decorated_func, params):
-        """Register a function decorated with @traced and its parameters.
-
-        Args:
-            original_func: The original function before decoration
-            decorated_func: The function after decoration
-            params: The parameters used for tracing
-        """
-        cls._traced_registry.append((original_func, decorated_func, params))
+        return ctx
 
 
 __all__ = ["UiPathTracingManager"]
