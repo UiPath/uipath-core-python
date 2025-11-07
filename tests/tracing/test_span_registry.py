@@ -4,7 +4,7 @@ from opentelemetry.trace import Span
 
 from tests.conftest import SpanCapture
 from uipath.core.tracing.decorators import traced
-from uipath.core.tracing.manager import UiPathTracingManager, _span_registry
+from uipath.core.tracing.span_utils import UiPathSpanUtils, _span_registry
 
 
 def test_nested_traced_functions_with_external_context(span_capture: SpanCapture):
@@ -24,10 +24,8 @@ def test_nested_traced_functions_with_external_context(span_capture: SpanCapture
     def mock_ancestors_provider():
         return list(external_span_stack)
 
-    UiPathTracingManager.register_current_span_provider(mock_external_span_provider)
-    UiPathTracingManager.register_current_span_ancestors_provider(
-        mock_ancestors_provider
-    )
+    UiPathSpanUtils.register_current_span_provider(mock_external_span_provider)
+    UiPathSpanUtils.register_current_span_ancestors_provider(mock_ancestors_provider)
 
     @traced(name="root")
     def root():
@@ -92,14 +90,14 @@ def test_nested_traced_functions_with_external_context(span_capture: SpanCapture
     span_capture.print_hierarchy()
 
     # Cleanup
-    UiPathTracingManager.register_current_span_provider(None)
-    UiPathTracingManager.register_current_span_ancestors_provider(None)
+    UiPathSpanUtils.register_current_span_provider(None)
+    UiPathSpanUtils.register_current_span_ancestors_provider(None)
 
 
 def test_span_registry_depth_calculation(span_capture: SpanCapture):
     """Test that the span registry correctly calculates span depths."""
     from uipath.core.tracing.decorators import traced
-    from uipath.core.tracing.manager import _span_registry
+    from uipath.core.tracing.span_utils import _span_registry
 
     @traced(name="depth0")
     def depth0():
@@ -217,10 +215,8 @@ def test_mixed_otel_and_external_spans(span_capture: SpanCapture):
     def mock_ancestors_provider():
         return external_spans[:-1] if len(external_spans) > 1 else []
 
-    UiPathTracingManager.register_current_span_provider(mock_external_span_provider)
-    UiPathTracingManager.register_current_span_ancestors_provider(
-        mock_ancestors_provider
-    )
+    UiPathSpanUtils.register_current_span_provider(mock_external_span_provider)
+    UiPathSpanUtils.register_current_span_ancestors_provider(mock_ancestors_provider)
 
     @traced(name="langraph_simulation")
     def langraph_simulation():
@@ -290,5 +286,5 @@ def test_mixed_otel_and_external_spans(span_capture: SpanCapture):
     span_capture.print_hierarchy()
 
     # Cleanup
-    UiPathTracingManager.register_current_span_provider(None)
-    UiPathTracingManager.register_current_span_ancestors_provider(None)
+    UiPathSpanUtils.register_current_span_provider(None)
+    UiPathSpanUtils.register_current_span_ancestors_provider(None)

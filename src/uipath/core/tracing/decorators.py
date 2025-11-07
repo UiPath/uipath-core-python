@@ -16,7 +16,7 @@ from uipath.core.tracing._utils import (
     format_object_for_trace_json,
     get_supported_params,
 )
-from uipath.core.tracing.manager import UiPathTracingManager
+from uipath.core.tracing.span_utils import UiPathSpanUtils
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def _opentelemetry_traced(
                 return span_cm, non_recording
 
             # Normal recording span
-            ctx = UiPathTracingManager.get_parent_context()
+            ctx = UiPathSpanUtils.get_parent_context()
             span_cm = trace.get_tracer(__name__).start_as_current_span(
                 trace_name, context=ctx
             )
