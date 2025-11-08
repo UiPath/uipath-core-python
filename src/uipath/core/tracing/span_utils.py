@@ -1,4 +1,4 @@
-"""Tracing manager for handling tracer implementations and function registry."""
+"""Utilities for managing UiPath spans."""
 
 import logging
 from typing import Callable, Dict, List, Optional
@@ -112,7 +112,7 @@ class SpanRegistry:
 _span_registry = SpanRegistry()
 
 
-class UiPathTracingManager:
+class UiPathSpanUtils:
     """Static utility class to manage tracing implementations and decorated functions."""
 
     _current_span_provider: Optional[Callable[[], Optional[Span]]] = None
@@ -128,7 +128,7 @@ class UiPathTracingManager:
             current_span_provider: A function that returns the current span from an external
                                  tracing framework. If None, no custom span parenting will be used.
         """
-        UiPathTracingManager._current_span_provider = current_span_provider
+        UiPathSpanUtils._current_span_provider = current_span_provider
 
     @staticmethod
     def get_parent_context() -> context.Context:
@@ -187,7 +187,7 @@ class UiPathTracingManager:
             current_span is not None and current_span.get_span_context().is_valid
         )
 
-        external_span = UiPathTracingManager.get_external_current_span()
+        external_span = UiPathSpanUtils.get_external_current_span()
 
         # Only one or no spans available
         if not has_current_span:
@@ -200,9 +200,7 @@ class UiPathTracingManager:
             return set_span_in_context(current_span)
 
         # Both spans exist - find the bottom-most one
-        bottom_span = UiPathTracingManager._get_bottom_most_span(
-            current_span, external_span
-        )
+        bottom_span = UiPathSpanUtils._get_bottom_most_span(current_span, external_span)
         return set_span_in_context(bottom_span)
 
     @staticmethod
@@ -224,7 +222,7 @@ class UiPathTracingManager:
         _span_registry.register_span(external_span)
 
         # Also register external ancestors
-        external_ancestors = UiPathTracingManager.get_ancestor_spans() or []
+        external_ancestors = UiPathSpanUtils.get_ancestor_spans() or []
         for ancestor in external_ancestors:
             _span_registry.register_span(ancestor)
 
@@ -273,9 +271,9 @@ class UiPathTracingManager:
     @staticmethod
     def get_external_current_span() -> Optional[Span]:
         """Get the current span from the external provider, if any."""
-        if UiPathTracingManager._current_span_provider is not None:
+        if UiPathSpanUtils._current_span_provider is not None:
             try:
-                return UiPathTracingManager._current_span_provider()
+                return UiPathSpanUtils._current_span_provider()
             except Exception as e:
                 logger.warning("Error getting current span from provider: %s", e)
         return None
@@ -283,9 +281,9 @@ class UiPathTracingManager:
     @staticmethod
     def get_ancestor_spans() -> List[Span]:
         """Get the ancestor spans from the registered provider, if any."""
-        if UiPathTracingManager._current_span_ancestors_provider is not None:
+        if UiPathSpanUtils._current_span_ancestors_provider is not None:
             try:
-                return UiPathTracingManager._current_span_ancestors_provider()
+                return UiPathSpanUtils._current_span_ancestors_provider()
             except Exception as e:
                 logger.warning("Error getting ancestor spans from provider: %s", e)
         return []
@@ -301,14 +299,14 @@ class UiPathTracingManager:
                                            from an external tracing framework. If None, no custom
                                            span ancestor information will be used.
         """
-        UiPathTracingManager._current_span_ancestors_provider = (
+        UiPathSpanUtils._current_span_ancestors_provider = (
             current_span_ancestors_provider
         )
 
     @staticmethod
     def get_current_span_ancestors_provider():
         """Get the currently set custom span ancestors provider."""
-        return UiPathTracingManager._current_span_ancestors_provider
+        return UiPathSpanUtils._current_span_ancestors_provider
 
 
-__all__ = ["UiPathTracingManager"]
+__all__ = ["UiPathSpanUtils"]
