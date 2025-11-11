@@ -1,7 +1,7 @@
 """Utilities for managing UiPath spans."""
 
 import logging
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Optional
 
 from opentelemetry import context, trace
 from opentelemetry.trace import Span, set_span_in_context
@@ -15,8 +15,8 @@ class SpanRegistry:
     MAX_HIERARCHY_DEPTH = 1000  # Hard limit for hierarchy traversal
 
     def __init__(self):
-        self._spans: Dict[int, Span] = {}  # span_id -> span
-        self._parent_map: Dict[int, Optional[int]] = {}  # span_id -> parent_id
+        self._spans: dict[int, Span] = {}  # span_id -> span
+        self._parent_map: dict[int, Optional[int]] = {}  # span_id -> parent_id
 
     def register_span(self, span: Span) -> None:
         """Register a span and its parent relationship."""
@@ -116,7 +116,7 @@ class UiPathSpanUtils:
     """Static utility class to manage tracing implementations and decorated functions."""
 
     _current_span_provider: Optional[Callable[[], Optional[Span]]] = None
-    _current_span_ancestors_provider: Optional[Callable[[], List[Span]]] = None
+    _current_span_ancestors_provider: Optional[Callable[[], list[Span]]] = None
 
     @staticmethod
     def register_current_span_provider(
@@ -279,7 +279,7 @@ class UiPathSpanUtils:
         return None
 
     @staticmethod
-    def get_ancestor_spans() -> List[Span]:
+    def get_ancestor_spans() -> list[Span]:
         """Get the ancestor spans from the registered provider, if any."""
         if UiPathSpanUtils._current_span_ancestors_provider is not None:
             try:
@@ -290,7 +290,7 @@ class UiPathSpanUtils:
 
     @staticmethod
     def register_current_span_ancestors_provider(
-        current_span_ancestors_provider: Optional[Callable[[], List[Span]]],
+        current_span_ancestors_provider: Optional[Callable[[], list[Span]]],
     ):
         """Register a custom current span ancestors provider function.
 

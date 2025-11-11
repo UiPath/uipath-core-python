@@ -1,7 +1,7 @@
 """Tracing manager for handling tracer implementations and function registry."""
 
 import contextlib
-from typing import Any, Generator, List
+from typing import Any, Generator, Optional
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor, TracerProvider
@@ -30,7 +30,7 @@ class UiPathTraceManager:
             "An incompatible Otel TracerProvider was instantiated. Please check runtime configuration."
         )
         self.tracer_provider: TracerProvider = current_provider
-        self.tracer_span_processors: List[SpanProcessor] = []
+        self.tracer_span_processors: list[SpanProcessor] = []
         self.execution_span_exporter = UiPathRuntimeExecutionSpanExporter()
         self.add_span_exporter(self.execution_span_exporter)
 
@@ -52,13 +52,16 @@ class UiPathTraceManager:
     def get_execution_spans(
         self,
         execution_id: str,
-    ) -> List[ReadableSpan]:
+    ) -> list[ReadableSpan]:
         """Retrieve spans for a given execution id."""
         return self.execution_span_exporter.get_spans(execution_id)
 
     @contextlib.contextmanager
     def start_execution_span(
-        self, root_span: str, execution_id: str
+        self,
+        root_span: str,
+        execution_id: str,
+        attributes: Optional[dict[str, str]] = None,
     ) -> Generator[_AgnosticContextManager[Any] | Any, Any, None]:
         """Start an execution span."""
         try:
@@ -66,6 +69,8 @@ class UiPathTraceManager:
             span_attributes: dict[str, Any] = {}
             if execution_id:
                 span_attributes["execution.id"] = execution_id
+            if attributes:
+                span_attributes.update(attributes)
             with tracer.start_as_current_span(
                 root_span, attributes=span_attributes
             ) as span:

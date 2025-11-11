@@ -118,7 +118,7 @@ def test_traced_with_datetime_input(span_capture: SpanCapture):
 
 def test_traced_with_complex_return_value(span_capture: SpanCapture):
     """Test tracing with complex return value."""
-    from typing import Any, Dict
+    from typing import Any
 
     from pydantic import BaseModel
 
@@ -126,7 +126,7 @@ def test_traced_with_complex_return_value(span_capture: SpanCapture):
 
     class Result(BaseModel):
         success: bool
-        data: Dict[str, Any]
+        data: dict[str, Any]
 
     @traced(name="get_result")
     def get_result():

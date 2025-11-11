@@ -1,7 +1,7 @@
 """Custom OpenTelemetry Span Exporter for UiPath Runtime executions."""
 
 from collections import defaultdict
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, Optional, Sequence
 
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
@@ -12,7 +12,7 @@ class UiPathRuntimeExecutionSpanExporter(SpanExporter):
 
     def __init__(self):
         """Initialize the exporter."""
-        self._spans: Dict[str, List[ReadableSpan]] = defaultdict(list)
+        self._spans: Dict[str, list[ReadableSpan]] = defaultdict(list)
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         """Export spans, grouping them by execution id."""
@@ -24,7 +24,7 @@ class UiPathRuntimeExecutionSpanExporter(SpanExporter):
 
         return SpanExportResult.SUCCESS
 
-    def get_spans(self, execution_id: str) -> List[ReadableSpan]:
+    def get_spans(self, execution_id: str) -> list[ReadableSpan]:
         """Retrieve spans for a given execution id."""
         return self._spans.get(execution_id, [])
 
