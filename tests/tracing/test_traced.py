@@ -2,7 +2,7 @@ import json
 from asyncio import sleep
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Any, Dict, List, Sequence
+from typing import Any, Sequence
 
 import pytest
 from opentelemetry import trace
@@ -30,7 +30,7 @@ class InMemorySpanExporter(SpanExporter):
         self.spans.extend(spans)
         return SpanExportResult.SUCCESS
 
-    def get_exported_spans(self) -> List[ReadableSpan]:
+    def get_exported_spans(self) -> list[ReadableSpan]:
         return self.spans
 
     def clear_exported_spans(self) -> None:
@@ -239,7 +239,7 @@ async def test_traced_async_with_basic_processors(setup_tracer):
     assert output["processed"] is True  # Added by processor
 
 
-def mask_credit_card(inputs: Dict[str, Any]) -> Dict[str, Any]:
+def mask_credit_card(inputs: dict[str, Any]) -> dict[str, Any]:
     """Process inputs to mask credit card information."""
     processed = inputs.copy()
     if "card_number" in processed:
@@ -251,7 +251,7 @@ def mask_credit_card(inputs: Dict[str, Any]) -> Dict[str, Any]:
     return processed
 
 
-def anonymize_single_user_data(output_dict: Dict[str, Any]) -> Dict[str, Any]:
+def anonymize_single_user_data(output_dict: dict[str, Any]) -> dict[str, Any]:
     """Process a single dictionary to anonymize user information."""
     processed = output_dict.copy()
     if "user_info" in processed and isinstance(processed["user_info"], dict):
@@ -669,7 +669,7 @@ async def test_traced_with_pydantic_basemodel_class(setup_tracer):
         confidence: float = 0.95
 
     @traced()
-    async def llm_chat_completions(messages: List[Any], response_format=None):
+    async def llm_chat_completions(messages: list[Any], response_format=None):
         """Simulate LLM function with BaseModel class as response_format."""
         if response_format:
             mock_content = '{"result": "hi!", "confidence": 0.95}'

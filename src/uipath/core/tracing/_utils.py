@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, Mapping
+from typing import Any, Mapping
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
@@ -15,7 +15,7 @@ from pydantic import BaseModel
 def get_supported_params(
     tracer_impl: Callable[..., Any],
     params: Mapping[str, Any],
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Extract the parameters supported by the tracer implementation."""
     try:
         sig = inspect.signature(tracer_impl)
@@ -23,7 +23,7 @@ def get_supported_params(
         # If we can't inspect, pass all parameters and let the function handle it
         return dict(params)
 
-    supported: Dict[str, Any] = {}
+    supported: dict[str, Any] = {}
     for name, value in params.items():
         if value is not None and name in sig.parameters:
             supported[name] = value
@@ -90,7 +90,7 @@ def format_object_for_trace_json(
 
 def format_args_for_trace(
     signature: inspect.Signature, *args: Any, **kwargs: Any
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     try:
         """Return a dictionary of inputs from the function signature."""
         # Create a parameter mapping by partially binding the arguments
