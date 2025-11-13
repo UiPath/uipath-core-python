@@ -7,13 +7,17 @@ Quick Start:
     >>> from uipath.core.telemetry import (
     ...     get_telemetry_client,
     ...     TelemetryConfig,
+    ...     ResourceAttr,
+    ...     SpanType,
     ...     traced,
     ... )
     >>>
-    >>> # Configure once at startup
+    >>> # Configure once at startup with resource attributes
     >>> config = TelemetryConfig(
-    ...     org_id="org-123",
-    ...     tenant_id="tenant-456",
+    ...     resource_attributes=(
+    ...         (ResourceAttr.ORG_ID, "org-123"),
+    ...         (ResourceAttr.TENANT_ID, "tenant-456"),
+    ...     ),
     ...     endpoint="https://telemetry.example.com"
     ... )
     >>> client = get_telemetry_client(config)
@@ -21,7 +25,7 @@ Quick Start:
     >>> # Execution-scoped tracing (recommended for workflows)
     >>> with client.start_as_current_span(
     ...     "workflow",
-    ...     semantic_type="automation",
+    ...     semantic_type=SpanType.AUTOMATION,
     ...     execution_id="exec-12345"  # All children inherit this ID
     ... ) as span:
     ...     process_invoice()  # Automatically tagged with execution.id
@@ -40,27 +44,7 @@ Quick Start:
     ...     span.set_attribute("key", "value")
 """
 
-from ._semantic_conventions import (
-    SPAN_TYPE_ACTIVITY,
-    SPAN_TYPE_AGENT,
-    SPAN_TYPE_AUTOMATION,
-    SPAN_TYPE_CHAIN,
-    SPAN_TYPE_GENERATION,
-    SPAN_TYPE_RETRIEVER,
-    # Semantic span types
-    SPAN_TYPE_SPAN,
-    SPAN_TYPE_TOOL,
-    SPAN_TYPE_WORKFLOW,
-    UIPATH_EXECUTION_ID,
-    UIPATH_FOLDER_KEY,
-    # Span attributes
-    UIPATH_JOB_ID,
-    # Resource attributes
-    UIPATH_ORG_ID,
-    UIPATH_PROCESS_KEY,
-    UIPATH_TENANT_ID,
-    UIPATH_USER_ID,
-)
+from .attributes import ResourceAttr, SpanAttr, SpanType
 from .client import (
     TelemetryClient,
     get_telemetry_client,
@@ -88,25 +72,10 @@ __all__ = [
     "set_execution_id",
     "get_execution_id",
     "clear_execution_id",
-    # Semantic conventions - Resource attributes
-    "UIPATH_ORG_ID",
-    "UIPATH_TENANT_ID",
-    "UIPATH_USER_ID",
-    # Semantic conventions - Span attributes
-    "UIPATH_JOB_ID",
-    "UIPATH_PROCESS_KEY",
-    "UIPATH_FOLDER_KEY",
-    "UIPATH_EXECUTION_ID",
-    # Semantic conventions - Span types
-    "SPAN_TYPE_SPAN",
-    "SPAN_TYPE_GENERATION",
-    "SPAN_TYPE_TOOL",
-    "SPAN_TYPE_AUTOMATION",
-    "SPAN_TYPE_ACTIVITY",
-    "SPAN_TYPE_WORKFLOW",
-    "SPAN_TYPE_AGENT",
-    "SPAN_TYPE_CHAIN",
-    "SPAN_TYPE_RETRIEVER",
+    # Semantic conventions (enums)
+    "ResourceAttr",
+    "SpanAttr",
+    "SpanType",
 ]
 
 __version__ = "1.0.0"

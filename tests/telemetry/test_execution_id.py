@@ -6,6 +6,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from tests.telemetry.utils import get_execution_spans
 from uipath.core.telemetry import (
+    ResourceAttr,
     TelemetryConfig,
     get_execution_id,
     get_telemetry_client,
@@ -22,8 +23,10 @@ def test_execution_id_parameter_sets_context():
     reset_telemetry_client()
     exporter = InMemorySpanExporter()
     config = TelemetryConfig(
-        org_id="test-org",
-        tenant_id="test-tenant",
+        resource_attributes=(
+            (ResourceAttr.ORG_ID, "test-org"),
+            (ResourceAttr.TENANT_ID, "test-tenant"),
+        ),
         endpoint=None,  # Console exporter
     )
     client = get_telemetry_client(config)
@@ -51,8 +54,10 @@ def test_execution_id_parameter_propagates_to_children():
     reset_telemetry_client()
     exporter = InMemorySpanExporter()
     config = TelemetryConfig(
-        org_id="test-org",
-        tenant_id="test-tenant",
+        resource_attributes=(
+            (ResourceAttr.ORG_ID, "test-org"),
+            (ResourceAttr.TENANT_ID, "test-tenant"),
+        ),
         endpoint=None,
     )
     client = get_telemetry_client(config)
@@ -91,7 +96,9 @@ def test_execution_id_parameter_overrides_context():
     """Test that execution_id parameter overrides existing context."""
     reset_telemetry_client()
     exporter = InMemorySpanExporter()
-    config = TelemetryConfig(org_id="test-org", endpoint=None)
+    config = TelemetryConfig(
+        resource_attributes=((ResourceAttr.ORG_ID, "test-org"),), endpoint=None
+    )
     client = get_telemetry_client(config)
 
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -119,7 +126,9 @@ def test_execution_id_parameter_none_uses_context():
     """Test that execution_id=None reads from existing context."""
     reset_telemetry_client()
     exporter = InMemorySpanExporter()
-    config = TelemetryConfig(org_id="test-org", endpoint=None)
+    config = TelemetryConfig(
+        resource_attributes=((ResourceAttr.ORG_ID, "test-org"),), endpoint=None
+    )
     client = get_telemetry_client(config)
 
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -146,7 +155,9 @@ def test_execution_id_parameter_with_nested_spans():
     """Test execution_id with nested spans at different levels."""
     reset_telemetry_client()
     exporter = InMemorySpanExporter()
-    config = TelemetryConfig(org_id="test-org", endpoint=None)
+    config = TelemetryConfig(
+        resource_attributes=((ResourceAttr.ORG_ID, "test-org"),), endpoint=None
+    )
     client = get_telemetry_client(config)
 
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -179,7 +190,9 @@ def test_execution_id_parameter_with_multiple_executions():
     """Test multiple execution-scoped spans don't interfere."""
     reset_telemetry_client()
     exporter = InMemorySpanExporter()
-    config = TelemetryConfig(org_id="test-org", endpoint=None)
+    config = TelemetryConfig(
+        resource_attributes=((ResourceAttr.ORG_ID, "test-org"),), endpoint=None
+    )
     client = get_telemetry_client(config)
 
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -215,7 +228,9 @@ def test_execution_id_parameter_with_decorator():
     """Test execution_id parameter works with @traced decorator."""
     reset_telemetry_client()
     exporter = InMemorySpanExporter()
-    config = TelemetryConfig(org_id="test-org", endpoint=None)
+    config = TelemetryConfig(
+        resource_attributes=((ResourceAttr.ORG_ID, "test-org"),), endpoint=None
+    )
     client = get_telemetry_client(config)
 
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -249,7 +264,9 @@ def test_execution_id_parameter_backward_compatibility():
     """Test that existing code without execution_id still works."""
     reset_telemetry_client()
     exporter = InMemorySpanExporter()
-    config = TelemetryConfig(org_id="test-org", endpoint=None)
+    config = TelemetryConfig(
+        resource_attributes=((ResourceAttr.ORG_ID, "test-org"),), endpoint=None
+    )
     client = get_telemetry_client(config)
 
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -275,7 +292,9 @@ def test_get_execution_spans_utility():
     """Test the get_execution_spans test utility function."""
     reset_telemetry_client()
     exporter = InMemorySpanExporter()
-    config = TelemetryConfig(org_id="test-org", endpoint=None)
+    config = TelemetryConfig(
+        resource_attributes=((ResourceAttr.ORG_ID, "test-org"),), endpoint=None
+    )
     client = get_telemetry_client(config)
 
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor

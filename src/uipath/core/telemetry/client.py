@@ -18,7 +18,6 @@ Example:
 
 import random
 import warnings
-from contextlib import nullcontext
 from functools import lru_cache
 from typing import Any, Callable, Optional, Union
 
@@ -46,15 +45,8 @@ from opentelemetry.sdk.trace.export import (
     ConsoleSpanExporter,
     SimpleSpanProcessor,
 )
-from opentelemetry.trace import INVALID_SPAN
 
-from ._semantic_conventions import (
-    SPAN_TYPE_ATTRIBUTE,
-    UIPATH_EXECUTION_ID,
-    UIPATH_ORG_ID,
-    UIPATH_TENANT_ID,
-    UIPATH_USER_ID,
-)
+from .attributes import SpanAttr
 from .config import TelemetryConfig
 from .context import get_execution_id
 from .observation import ObservationSpan
@@ -94,13 +86,9 @@ class TelemetryClient:
         if config.service_namespace:
             resource_attrs["service.namespace"] = config.service_namespace
 
-        # Add UiPath-specific attributes (Resource Attributes - static, low cardinality)
-        if config.org_id:
-            resource_attrs[UIPATH_ORG_ID] = config.org_id
-        if config.tenant_id:
-            resource_attrs[UIPATH_TENANT_ID] = config.tenant_id
-        if config.user_id:
-            resource_attrs[UIPATH_USER_ID] = config.user_id
+        # Merge user-provided resource attributes (tuple of tuples)
+        if config.resource_attributes:
+            resource_attrs.update(dict(config.resource_attributes))
 
         resource = Resource.create(resource_attrs)  # type: ignore[arg-type]
 
@@ -133,7 +121,7 @@ class TelemetryClient:
             self._tracer_provider = current_provider
             warnings.warn(
                 "An existing OpenTelemetry TracerProvider was found. "
-                "UiPath resource attributes (org_id, tenant_id, user_id) will not be "
+                "Resource attributes from TelemetryConfig will not be "
                 "applied to the global provider. Spans will still be exported to your "
                 "configured endpoint via the added processor.",
                 UserWarning,
@@ -309,23 +297,15 @@ class TelemetryClient:
                 span_cm, hide_input=hide_input, hide_output=hide_output
             )
 
-        if self._config.sample_rate <= 0.0:
-            # Return no-op span (wrap INVALID_SPAN in nullcontext for consistency)
-            return ObservationSpan(
-                nullcontext(INVALID_SPAN),
-                hide_input=hide_input,
-                hide_output=hide_output,
-            )
-
         parent_ctx = self._resolve_parent_context()
 
         span_attrs = attributes or {}
-        span_attrs[SPAN_TYPE_ATTRIBUTE] = semantic_type
+        span_attrs[SpanAttr.TYPE] = semantic_type
 
         # Add execution_id if set (automatic propagation via ContextVar)
         exec_id = get_execution_id()
         if exec_id:
-            span_attrs[UIPATH_EXECUTION_ID] = exec_id
+            span_attrs[SpanAttr.EXECUTION_ID] = exec_id
 
         otel_span_cm = self._tracer.start_as_current_span(
             name,
@@ -369,7 +349,7 @@ class TelemetryClient:
         return True  # Always return True for consistency with flush()
 
 
-# Singleton pattern with warning on config mismatch (Pattern E - Hybrid)
+# Singleton pattern with warning on config mismatch
 _default_config: Optional[TelemetryConfig] = None
 
 
@@ -412,12 +392,10 @@ def get_telemetry_client(config: Optional[TelemetryConfig] = None) -> TelemetryC
     global _default_config
 
     if config is None:
-        # Use default config
         if _default_config is None:
             _default_config = TelemetryConfig()  # Uses env vars
         config = _default_config
     else:
-        # Warn if config differs from default
         if _default_config is not None and config != _default_config:
             warnings.warn(
                 "get_telemetry_client() called with different config. "

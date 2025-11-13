@@ -10,7 +10,7 @@ This module provides immutable configuration for the telemetry client with:
 import importlib.metadata
 import os
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 
 @dataclass(frozen=True)
@@ -23,23 +23,24 @@ class TelemetryConfig:
     3. Default values
 
     Example:
-        >>> # Explicit configuration
+        >>> # Explicit configuration with resource attributes
+        >>> from uipath.core.telemetry import ResourceAttr
         >>> config = TelemetryConfig(
-        ...     org_id="org-123",
-        ...     tenant_id="tenant-456",
+        ...     resource_attributes=(
+        ...         (ResourceAttr.ORG_ID, "org-123"),
+        ...         (ResourceAttr.TENANT_ID, "tenant-456"),
+        ...     ),
         ...     endpoint="https://telemetry.example.com"
         ... )
         >>>
         >>> # Environment variable configuration
-        >>> # export UIPATH_ORG_ID=org-123
-        >>> # export UIPATH_TENANT_ID=tenant-456
+        >>> # export UIPATH_TELEMETRY_ENDPOINT=https://telemetry.example.com
         >>> config = TelemetryConfig()  # Auto-loads from env
     """
 
-    # UiPath-specific metadata (Resource Attributes - low cardinality, static)
-    org_id: Optional[str] = None  # Env: UIPATH_ORG_ID
-    tenant_id: Optional[str] = None  # Env: UIPATH_TENANT_ID
-    user_id: Optional[str] = None  # Env: UIPATH_USER_ID
+    # Generic resource attributes (vendor-neutral, hashable)
+    # Tuple of tuples for frozen dataclass compatibility
+    resource_attributes: Optional[Tuple[Tuple[str, Any], ...]] = None
 
     # Library metadata (auto-detected)
     library_name: str = "uipath-core"
@@ -55,9 +56,6 @@ class TelemetryConfig:
     batch_export: bool = True
     max_queue_size: int = 2048
     export_timeout_millis: int = 30000
-
-    # Sampling (0.0 = disabled, 1.0 = 100%)
-    sample_rate: float = 1.0  # Env: UIPATH_TELEMETRY_SAMPLE_RATE
 
     # Service metadata
     service_name: str = "uipath-core"  # Env: UIPATH_SERVICE_NAME
@@ -80,9 +78,6 @@ class TelemetryConfig:
                 object.__setattr__(self, "library_version", "unknown")
 
         none_default_fields = {
-            "org_id": ("UIPATH_ORG_ID", None),
-            "tenant_id": ("UIPATH_TENANT_ID", None),
-            "user_id": ("UIPATH_USER_ID", None),
             "endpoint": ("UIPATH_TELEMETRY_ENDPOINT", None),
             "service_namespace": ("UIPATH_SERVICE_NAMESPACE", None),
             "service_version": ("UIPATH_SERVICE_VERSION", None),
@@ -101,17 +96,3 @@ class TelemetryConfig:
             env_value = os.getenv(env_var)
             if env_value is not None and getattr(self, field_name) == default_value:
                 object.__setattr__(self, field_name, env_value)
-
-        sample_rate_env = os.getenv("UIPATH_TELEMETRY_SAMPLE_RATE")
-        if sample_rate_env is not None:
-            try:
-                sample_rate = float(sample_rate_env)
-                if 0.0 <= sample_rate <= 1.0:
-                    object.__setattr__(self, "sample_rate", sample_rate)
-            except ValueError:
-                pass
-
-        if not (0.0 <= self.sample_rate <= 1.0):
-            raise ValueError(
-                f"sample_rate must be between 0.0 and 1.0, got {self.sample_rate}"
-            )

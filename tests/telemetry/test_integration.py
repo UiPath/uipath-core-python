@@ -6,9 +6,6 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from uipath.core.telemetry import (
     TelemetryClient,
-    TelemetryConfig,
-    get_telemetry_client,
-    reset_telemetry_client,
     set_execution_id,
 )
 
@@ -150,32 +147,6 @@ def test_privacy_controls_integration(
     assert span_data.attributes["public_data"] == "safe_to_log"
 
 
-def test_config_environment_variable_override():
-    """Test that environment variables override config defaults."""
-    import os
-
-    # Set environment variables (correct names per config.py)
-    os.environ["UIPATH_ORG_ID"] = "env-org-id"
-    os.environ["UIPATH_TENANT_ID"] = "env-tenant-id"
-    os.environ["UIPATH_TELEMETRY_SAMPLE_RATE"] = "0.5"
-
-    try:
-        # Reset to pick up env vars
-        reset_telemetry_client()
-
-        config = TelemetryConfig()
-        assert config.org_id == "env-org-id"
-        assert config.tenant_id == "env-tenant-id"
-        assert config.sample_rate == 0.5
-
-    finally:
-        # Clean up
-        del os.environ["UIPATH_ORG_ID"]
-        del os.environ["UIPATH_TENANT_ID"]
-        del os.environ["UIPATH_TELEMETRY_SAMPLE_RATE"]
-        reset_telemetry_client()
-
-
 def test_resource_attributes_integration(
     telemetry_client: TelemetryClient,
     memory_exporter: InMemorySpanExporter,
@@ -233,26 +204,6 @@ def test_span_attribute_types_integration(
 
     dict_value = json.loads(span_data.attributes["dict_attr"])
     assert dict_value["key"] == "value"
-
-
-def test_disabled_telemetry_zero_overhead(
-    memory_exporter: InMemorySpanExporter,
-):
-    """Test that disabled telemetry has minimal overhead."""
-    config = TelemetryConfig(sample_rate=0.0)  # Disabled
-    reset_telemetry_client()
-    client = get_telemetry_client(config)
-
-    # Should return no-op spans
-    with client.start_as_current_span("test") as span:
-        span.set_attribute("key", "value")
-        span.update_input({"data": "input"})
-
-    # No spans should be recorded
-    spans = memory_exporter.get_finished_spans()
-    assert len(spans) == 0
-
-    reset_telemetry_client()
 
 
 def test_manual_span_lifecycle(

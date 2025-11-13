@@ -761,7 +761,7 @@ def test_decorator_overhead_acceptable():
     from uipath.core.telemetry import TelemetryConfig, get_telemetry_client, traced
 
     # Setup client with disabled sampling
-    config = TelemetryConfig(sample_rate=0.0, endpoint=None)
+    config = TelemetryConfig(endpoint=None)
     get_telemetry_client(config)
 
     # Control: undecorated function

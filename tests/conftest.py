@@ -66,13 +66,14 @@ def telemetry_config() -> "TelemetryConfig":
 
     Returns a TelemetryConfig with test-specific settings using InMemorySpanExporter.
     """
-    from uipath.core.telemetry import TelemetryConfig
+    from uipath.core.telemetry import ResourceAttr, TelemetryConfig
 
     return TelemetryConfig(
-        org_id="test-org-123",
-        tenant_id="test-tenant-456",
-        user_id="test-user-789",
-        sample_rate=1.0,  # Fully enabled
+        resource_attributes=(
+            (ResourceAttr.ORG_ID, "test-org-123"),
+            (ResourceAttr.TENANT_ID, "test-tenant-456"),
+            (ResourceAttr.USER_ID, "test-user-789"),
+        )
     )
 
 

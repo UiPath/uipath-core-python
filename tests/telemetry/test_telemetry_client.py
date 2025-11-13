@@ -6,6 +6,7 @@ import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from uipath.core.telemetry import (
+    ResourceAttr,
     TelemetryClient,
     TelemetryConfig,
     get_telemetry_client,
@@ -32,22 +33,6 @@ def test_telemetry_client_with_config(telemetry_config: TelemetryConfig):
     client = get_telemetry_client(telemetry_config)
 
     assert client._config == telemetry_config
-    assert client._config.org_id == "test-org-123"
-    assert client._config.tenant_id == "test-tenant-456"
-    assert client._config.user_id == "test-user-789"
-    assert client._config.sample_rate == 1.0
-
-    reset_telemetry_client()
-
-
-def test_telemetry_client_disabled():
-    """Test zero-overhead when telemetry disabled."""
-    config = TelemetryConfig(sample_rate=0.0)  # 0.0 = disabled
-    client = get_telemetry_client(config)
-
-    # Should return INVALID_SPAN (no-op)
-    with client.start_as_current_span("test_span") as span:
-        assert not span._span.is_recording()
 
     reset_telemetry_client()
 
@@ -66,17 +51,26 @@ def test_telemetry_client_tracer_provider(
 
 def test_telemetry_client_reset():
     """Test reset_telemetry_client() cleanup."""
-    config = TelemetryConfig(org_id="org-1", tenant_id="tenant-1")
+    config = TelemetryConfig(
+        resource_attributes=(
+            (ResourceAttr.ORG_ID, "org-1"),
+            (ResourceAttr.TENANT_ID, "tenant-1"),
+        )
+    )
     client1 = get_telemetry_client(config)
 
     reset_telemetry_client()
 
     # New client after reset
-    config2 = TelemetryConfig(org_id="org-2", tenant_id="tenant-2")
+    config2 = TelemetryConfig(
+        resource_attributes=(
+            (ResourceAttr.ORG_ID, "org-2"),
+            (ResourceAttr.TENANT_ID, "tenant-2"),
+        )
+    )
     client2 = get_telemetry_client(config2)
 
     assert client1 is not client2
-    assert client2._config.org_id == "org-2"
 
     reset_telemetry_client()
 
@@ -248,7 +242,12 @@ def test_telemetry_client_start_execution_span():
     Note: Per consensus, this helper does NOT auto-flush.
     User must manually call client.flush_spans().
     """
-    config = TelemetryConfig(org_id="test-org", tenant_id="test-tenant")
+    config = TelemetryConfig(
+        resource_attributes=(
+            (ResourceAttr.ORG_ID, "test-org"),
+            (ResourceAttr.TENANT_ID, "test-tenant"),
+        )
+    )
     client = get_telemetry_client(config)
 
     # Start execution span
@@ -269,7 +268,12 @@ def test_telemetry_client_get_execution_spans_test_utility():
     Note: This is a test/development utility, not production API.
     Should only be available when using InMemorySpanExporter.
     """
-    config = TelemetryConfig(org_id="test-org", tenant_id="test-tenant")
+    config = TelemetryConfig(
+        resource_attributes=(
+            (ResourceAttr.ORG_ID, "test-org"),
+            (ResourceAttr.TENANT_ID, "test-tenant"),
+        )
+    )
     client = get_telemetry_client(config)
 
     set_execution_id("exec-123")
