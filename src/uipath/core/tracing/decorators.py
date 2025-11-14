@@ -29,7 +29,21 @@ def _opentelemetry_traced(
     output_processor: Optional[Callable[..., Any]] = None,
     recording: bool = True,
 ):
-    """Default tracer implementation using OpenTelemetry."""
+    """Default tracer implementation using OpenTelemetry.
+
+    Args:
+        name: Optional name for the span
+        run_type: Optional string to categorize the run type
+        span_type: Optional string to categorize the span type. If set to "tool" or "TOOL",
+                   the function is treated as an OpenInference tool call with:
+                   - openinference.span.kind = "TOOL"
+                   - tool.name = function name
+                   - span_type = "TOOL"
+                   - input.value and output.value (already set by default)
+        input_processor: Optional function to process inputs before recording
+        output_processor: Optional function to process outputs before recording
+        recording: If False, span is not recorded
+    """
 
     def decorator(func):
         trace_name = name or func.__name__
@@ -67,7 +81,17 @@ def _opentelemetry_traced(
         def sync_wrapper(*args, **kwargs):
             span_cm, span = get_span()
             try:
-                span.set_attribute("span_type", span_type or "function_call_sync")
+                # Check if this should be treated as a tool call
+                is_tool = span_type and span_type.upper() == "TOOL"
+
+                if is_tool:
+                    # Set OpenInference tool call attributes
+                    span.set_attribute("openinference.span.kind", "TOOL")
+                    span.set_attribute("tool.name", trace_name)
+                    span.set_attribute("span_type", "TOOL")
+                else:
+                    span.set_attribute("span_type", span_type or "function_call_sync")
+
                 if run_type is not None:
                     span.set_attribute("run_type", run_type)
 
@@ -100,7 +124,17 @@ def _opentelemetry_traced(
         async def async_wrapper(*args, **kwargs):
             span_cm, span = get_span()
             try:
-                span.set_attribute("span_type", span_type or "function_call_async")
+                # Check if this should be treated as a tool call
+                is_tool = span_type and span_type.upper() == "TOOL"
+
+                if is_tool:
+                    # Set OpenInference tool call attributes
+                    span.set_attribute("openinference.span.kind", "TOOL")
+                    span.set_attribute("tool.name", trace_name)
+                    span.set_attribute("span_type", "TOOL")
+                else:
+                    span.set_attribute("span_type", span_type or "function_call_async")
+
                 if run_type is not None:
                     span.set_attribute("run_type", run_type)
 
@@ -133,9 +167,19 @@ def _opentelemetry_traced(
         def generator_wrapper(*args, **kwargs):
             span_cm, span = get_span()
             try:
-                span.set_attribute(
-                    "span_type", span_type or "function_call_generator_sync"
-                )
+                # Check if this should be treated as a tool call
+                is_tool = span_type and span_type.upper() == "TOOL"
+
+                if is_tool:
+                    # Set OpenInference tool call attributes
+                    span.set_attribute("openinference.span.kind", "TOOL")
+                    span.set_attribute("tool.name", trace_name)
+                    span.set_attribute("span_type", "TOOL")
+                else:
+                    span.set_attribute(
+                        "span_type", span_type or "function_call_generator_sync"
+                    )
+
                 if run_type is not None:
                     span.set_attribute("run_type", run_type)
 
@@ -145,7 +189,6 @@ def _opentelemetry_traced(
                 if input_processor:
                     processed_inputs = input_processor(json.loads(inputs))
                     inputs = json.dumps(processed_inputs, default=str)
-
                 span.set_attribute("input.mime_type", "application/json")
                 span.set_attribute("input.value", inputs)
 
@@ -154,7 +197,6 @@ def _opentelemetry_traced(
                     outputs.append(item)
                     span.add_event(f"Yielded: {item}")
                     yield item
-
                 output = output_processor(outputs) if output_processor else outputs
                 span.set_attribute("output.value", format_object_for_trace_json(output))
                 span.set_attribute("output.mime_type", "application/json")
@@ -171,9 +213,19 @@ def _opentelemetry_traced(
         async def async_generator_wrapper(*args, **kwargs):
             span_cm, span = get_span()
             try:
-                span.set_attribute(
-                    "span_type", span_type or "function_call_generator_async"
-                )
+                # Check if this should be treated as a tool call
+                is_tool = span_type and span_type.upper() == "TOOL"
+
+                if is_tool:
+                    # Set OpenInference tool call attributes
+                    span.set_attribute("openinference.span.kind", "TOOL")
+                    span.set_attribute("tool.name", trace_name)
+                    span.set_attribute("span_type", "TOOL")
+                else:
+                    span.set_attribute(
+                        "span_type", span_type or "function_call_generator_async"
+                    )
+
                 if run_type is not None:
                     span.set_attribute("run_type", run_type)
 
