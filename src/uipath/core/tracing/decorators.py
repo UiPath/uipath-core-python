@@ -1,7 +1,6 @@
 """Tracing decorators for function instrumentation."""
 
 import inspect
-import json
 import logging
 import random
 from functools import wraps
@@ -12,9 +11,9 @@ from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 from opentelemetry.trace.status import StatusCode
 
 from uipath.core.tracing._utils import (
-    format_args_for_trace_json,
-    format_object_for_trace_json,
     get_supported_params,
+    set_span_input_attributes,
+    set_span_output_attributes,
 )
 from uipath.core.tracing.span_utils import UiPathSpanUtils
 
@@ -29,9 +28,23 @@ def _opentelemetry_traced(
     output_processor: Optional[Callable[..., Any]] = None,
     recording: bool = True,
 ):
-    """Default tracer implementation using OpenTelemetry."""
+    """Default tracer implementation using OpenTelemetry.
 
-    def decorator(func):
+    Args:
+        name: Optional name for the span
+        run_type: Optional string to categorize the run type
+        span_type: Optional string to categorize the span type. If set to "tool" or "TOOL",
+                   the function is treated as an OpenInference tool call with:
+                   - openinference.span.kind = "TOOL"
+                   - tool.name = function name
+                   - span_type = "TOOL"
+                   - input.value and output.value (already set by default)
+        input_processor: Optional function to process inputs before recording
+        output_processor: Optional function to process outputs before recording
+        recording: If False, span is not recorded
+    """
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         trace_name = name or func.__name__
 
         def get_span():
@@ -64,28 +77,30 @@ def _opentelemetry_traced(
 
         # --------- Sync wrapper ---------
         @wraps(func)
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             span_cm, span = get_span()
             try:
-                span.set_attribute("span_type", span_type or "function_call_sync")
-                if run_type is not None:
-                    span.set_attribute("run_type", run_type)
-
-                inputs = format_args_for_trace_json(
-                    inspect.signature(func), *args, **kwargs
+                # Set input attributes BEFORE execution
+                set_span_input_attributes(
+                    span,
+                    trace_name=trace_name,
+                    wrapped_func=func,
+                    args=args,
+                    kwargs=kwargs,
+                    run_type=run_type,
+                    span_type=span_type or "function_call_sync",
+                    input_processor=input_processor,
                 )
-                if input_processor:
-                    processed_inputs = input_processor(json.loads(inputs))
-                    inputs = json.dumps(processed_inputs, default=str)
 
-                span.set_attribute("input.mime_type", "application/json")
-                span.set_attribute("input.value", inputs)
-
+                # Execute the function
                 result = func(*args, **kwargs)
-                output = output_processor(result) if output_processor else result
 
-                span.set_attribute("output.value", format_object_for_trace_json(output))
-                span.set_attribute("output.mime_type", "application/json")
+                # Set output attributes AFTER execution
+                set_span_output_attributes(
+                    span,
+                    result=result,
+                    output_processor=output_processor,
+                )
                 return result
             except Exception as e:
                 span.record_exception(e)
@@ -97,28 +112,30 @@ def _opentelemetry_traced(
 
         # --------- Async wrapper ---------
         @wraps(func)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             span_cm, span = get_span()
             try:
-                span.set_attribute("span_type", span_type or "function_call_async")
-                if run_type is not None:
-                    span.set_attribute("run_type", run_type)
-
-                inputs = format_args_for_trace_json(
-                    inspect.signature(func), *args, **kwargs
+                # Set input attributes BEFORE execution
+                set_span_input_attributes(
+                    span,
+                    trace_name=trace_name,
+                    wrapped_func=func,
+                    args=args,
+                    kwargs=kwargs,
+                    run_type=run_type,
+                    span_type=span_type or "function_call_async",
+                    input_processor=input_processor,
                 )
-                if input_processor:
-                    processed_inputs = input_processor(json.loads(inputs))
-                    inputs = json.dumps(processed_inputs, default=str)
 
-                span.set_attribute("input.mime_type", "application/json")
-                span.set_attribute("input.value", inputs)
-
+                # Execute the function
                 result = await func(*args, **kwargs)
-                output = output_processor(result) if output_processor else result
 
-                span.set_attribute("output.value", format_object_for_trace_json(output))
-                span.set_attribute("output.mime_type", "application/json")
+                # Set output attributes AFTER execution
+                set_span_output_attributes(
+                    span,
+                    result=result,
+                    output_processor=output_processor,
+                )
                 return result
             except Exception as e:
                 span.record_exception(e)
@@ -130,34 +147,34 @@ def _opentelemetry_traced(
 
         # --------- Generator wrapper ---------
         @wraps(func)
-        def generator_wrapper(*args, **kwargs):
+        def generator_wrapper(*args: Any, **kwargs: Any) -> Any:
             span_cm, span = get_span()
             try:
-                span.set_attribute(
-                    "span_type", span_type or "function_call_generator_sync"
+                # Set input attributes BEFORE execution
+                set_span_input_attributes(
+                    span,
+                    trace_name=trace_name,
+                    wrapped_func=func,
+                    args=args,
+                    kwargs=kwargs,
+                    run_type=run_type,
+                    span_type=span_type or "function_call_generator_sync",
+                    input_processor=input_processor,
                 )
-                if run_type is not None:
-                    span.set_attribute("run_type", run_type)
 
-                inputs = format_args_for_trace_json(
-                    inspect.signature(func), *args, **kwargs
-                )
-                if input_processor:
-                    processed_inputs = input_processor(json.loads(inputs))
-                    inputs = json.dumps(processed_inputs, default=str)
-
-                span.set_attribute("input.mime_type", "application/json")
-                span.set_attribute("input.value", inputs)
-
+                # Execute the generator and collect outputs
                 outputs = []
                 for item in func(*args, **kwargs):
                     outputs.append(item)
                     span.add_event(f"Yielded: {item}")
                     yield item
 
-                output = output_processor(outputs) if output_processor else outputs
-                span.set_attribute("output.value", format_object_for_trace_json(output))
-                span.set_attribute("output.mime_type", "application/json")
+                # Set output attributes AFTER execution
+                set_span_output_attributes(
+                    span,
+                    result=outputs,
+                    output_processor=output_processor,
+                )
             except Exception as e:
                 span.record_exception(e)
                 span.set_status(StatusCode.ERROR, str(e))
@@ -168,34 +185,34 @@ def _opentelemetry_traced(
 
         # --------- Async generator wrapper ---------
         @wraps(func)
-        async def async_generator_wrapper(*args, **kwargs):
+        async def async_generator_wrapper(*args: Any, **kwargs: Any) -> Any:
             span_cm, span = get_span()
             try:
-                span.set_attribute(
-                    "span_type", span_type or "function_call_generator_async"
+                # Set input attributes BEFORE execution
+                set_span_input_attributes(
+                    span,
+                    trace_name=trace_name,
+                    wrapped_func=func,
+                    args=args,
+                    kwargs=kwargs,
+                    run_type=run_type,
+                    span_type=span_type or "function_call_generator_async",
+                    input_processor=input_processor,
                 )
-                if run_type is not None:
-                    span.set_attribute("run_type", run_type)
 
-                inputs = format_args_for_trace_json(
-                    inspect.signature(func), *args, **kwargs
-                )
-                if input_processor:
-                    processed_inputs = input_processor(json.loads(inputs))
-                    inputs = json.dumps(processed_inputs, default=str)
-
-                span.set_attribute("input.mime_type", "application/json")
-                span.set_attribute("input.value", inputs)
-
+                # Execute the generator and collect outputs
                 outputs = []
                 async for item in func(*args, **kwargs):
                     outputs.append(item)
                     span.add_event(f"Yielded: {item}")
                     yield item
 
-                output = output_processor(outputs) if output_processor else outputs
-                span.set_attribute("output.value", format_object_for_trace_json(output))
-                span.set_attribute("output.mime_type", "application/json")
+                # Set output attributes AFTER execution
+                set_span_output_attributes(
+                    span,
+                    result=outputs,
+                    output_processor=output_processor,
+                )
             except Exception as e:
                 span.record_exception(e)
                 span.set_status(StatusCode.ERROR, str(e))
@@ -242,11 +259,11 @@ def traced(
     """
 
     # Apply default processors selectively based on hide flags
-    def _default_input_processor(inputs):
+    def _default_input_processor(inputs: Any) -> dict[str, str]:
         """Default input processor that doesn't log any actual input data."""
         return {"redacted": "Input data not logged for privacy/security"}
 
-    def _default_output_processor(outputs):
+    def _default_output_processor(outputs: Any) -> dict[str, str]:
         """Default output processor that doesn't log any actual output data."""
         return {"redacted": "Output data not logged for privacy/security"}
 
@@ -267,7 +284,7 @@ def traced(
 
     tracer_impl = _opentelemetry_traced
 
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         # Check which parameters are supported by the tracer_impl
         supported_params = get_supported_params(tracer_impl, params)
 
