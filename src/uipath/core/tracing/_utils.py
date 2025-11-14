@@ -6,9 +6,10 @@ from collections.abc import Callable
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 from zoneinfo import ZoneInfo
 
+from opentelemetry.trace import Span
 from pydantic import BaseModel
 
 
@@ -30,7 +31,7 @@ def get_supported_params(
     return supported
 
 
-def _simple_serialize_defaults(obj):
+def _simple_serialize_defaults(obj: Any) -> Any:
     # Handle Pydantic BaseModel instances
     if hasattr(obj, "model_dump") and not isinstance(obj, type):
         return obj.model_dump(exclude_none=True, mode="json")
@@ -56,8 +57,8 @@ def _simple_serialize_defaults(obj):
         return _simple_serialize_defaults(obj.value)
 
     if isinstance(obj, (set, tuple)):
-        if hasattr(obj, "_asdict") and callable(obj._asdict):
-            return obj._asdict()
+        if hasattr(obj, "_asdict") and callable(obj._asdict):  # pyright: ignore[reportAttributeAccessIssue]
+            return obj._asdict()  # pyright: ignore[reportAttributeAccessIssue]
         return list(obj)
 
     if isinstance(obj, datetime):
@@ -120,3 +121,68 @@ def format_args_for_trace(
         return result
     except Exception:
         return {"args": args, "kwargs": kwargs}
+
+
+def set_span_input_attributes(
+    span: Span,
+    trace_name: str,
+    wrapped_func: Callable,
+    args: Any,
+    kwargs: Any,
+    span_type: str,
+    run_type: Optional[str],
+    input_processor: Optional[Callable[..., Any]],
+) -> None:
+    """Set span attributes for metadata and inputs before function execution.
+
+    This should be called BEFORE the wrapped function executes to ensure
+    input context is captured even if the function raises an exception.
+
+    Args:
+        span: The OpenTelemetry span to set attributes on
+        trace_name: Name of the trace/span
+        wrapped_func: The function being traced
+        args: Positional arguments passed to the function
+        kwargs: Keyword arguments passed to the function
+        span_type: Span type categorization (set to "TOOL" for OpenInference tool calls)
+        run_type: Optional run type categorization
+        input_processor: Optional function to process inputs before recording
+    """
+    is_tool = span_type and span_type.upper() == "TOOL"
+    if is_tool:
+        span.set_attribute("openinference.span.kind", "TOOL")
+        span.set_attribute("tool.name", trace_name)
+        span.set_attribute("span_type", "TOOL")
+    else:
+        span.set_attribute("span_type", span_type)
+
+    if run_type is not None:
+        span.set_attribute("run_type", run_type)
+
+    inputs = format_args_for_trace_json(
+        inspect.signature(wrapped_func), *args, **kwargs
+    )
+    if input_processor:
+        processed_inputs = input_processor(json.loads(inputs))
+        inputs = json.dumps(processed_inputs, default=str)
+    span.set_attribute("input.mime_type", "application/json")
+    span.set_attribute("input.value", inputs)
+
+
+def set_span_output_attributes(
+    span: Span,
+    result: Any,
+    output_processor: Optional[Callable[..., Any]],
+) -> None:
+    """Set span attributes for outputs after function execution.
+
+    This should be called AFTER the wrapped function executes successfully.
+
+    Args:
+        span: The OpenTelemetry span to set attributes on
+        result: The result from the function execution
+        output_processor: Optional function to process outputs before recording
+    """
+    output = output_processor(result) if output_processor else result
+    span.set_attribute("output.value", format_object_for_trace_json(output))
+    span.set_attribute("output.mime_type", "application/json")
