@@ -259,11 +259,11 @@ def traced(
     """
 
     # Apply default processors selectively based on hide flags
-    def _default_input_processor(inputs: Any) -> Any:
+    def _default_input_processor(inputs: Any) -> dict[str, str]:
         """Default input processor that doesn't log any actual input data."""
         return {"redacted": "Input data not logged for privacy/security"}
 
-    def _default_output_processor(outputs: Any) -> Any:
+    def _default_output_processor(outputs: Any) -> dict[str, str]:
         """Default output processor that doesn't log any actual output data."""
         return {"redacted": "Output data not logged for privacy/security"}
 

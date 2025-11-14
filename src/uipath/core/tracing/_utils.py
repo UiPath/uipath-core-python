@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, cast
 from zoneinfo import ZoneInfo
 
 from opentelemetry.trace import Span
@@ -31,7 +31,9 @@ def get_supported_params(
     return supported
 
 
-def _simple_serialize_defaults(obj: Any) -> Any:
+def _simple_serialize_defaults(
+    obj: Any,
+) -> dict[str, Any] | list[Any] | str | int | float | bool | None:
     # Handle Pydantic BaseModel instances
     if hasattr(obj, "model_dump") and not isinstance(obj, type):
         return obj.model_dump(exclude_none=True, mode="json")
@@ -58,7 +60,7 @@ def _simple_serialize_defaults(obj: Any) -> Any:
 
     if isinstance(obj, (set, tuple)):
         if hasattr(obj, "_asdict") and callable(obj._asdict):  # pyright: ignore[reportAttributeAccessIssue]
-            return obj._asdict()  # pyright: ignore[reportAttributeAccessIssue]
+            return cast(dict[str, Any], obj._asdict())  # pyright: ignore[reportAttributeAccessIssue]
         return list(obj)
 
     if isinstance(obj, datetime):
