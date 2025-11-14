@@ -126,7 +126,7 @@ def format_args_for_trace(
 def set_span_input_attributes(
     span: Span,
     trace_name: str,
-    wrapped_func: Callable,
+    wrapped_func: Callable[..., Any],
     args: Any,
     kwargs: Any,
     span_type: str,
