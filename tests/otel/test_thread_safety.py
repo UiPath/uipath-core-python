@@ -8,19 +8,26 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from uipath.core.otel.client import OTelClient, OTelConfig, get_client, init_client
+from uipath.core.otel.client import TelemetryClient, get_client, init_client
+from uipath.core.otel.config import TelemetryConfig
 
 if TYPE_CHECKING:
     from opentelemetry.sdk.trace.export import InMemorySpanExporter
 
 
+@pytest.mark.no_auto_tracer
 def test_concurrent_init_client(in_memory_exporter: InMemorySpanExporter) -> None:
     """Test concurrent init_client() calls create only one instance.
 
     Args:
         in_memory_exporter: In-memory exporter fixture
     """
-    clients: list[OTelClient] = []
+    # Reset global state for this test
+    from opentelemetry import trace
+
+    trace._TRACER_PROVIDER = None  # type: ignore[attr-defined]
+    trace._TRACER_PROVIDER_SET_ONCE._done = False  # type: ignore[attr-defined]
+    clients: list[TelemetryClient] = []
     exceptions: list[Exception] = []
 
     def init_worker() -> None:
@@ -30,7 +37,7 @@ def test_concurrent_init_client(in_memory_exporter: InMemorySpanExporter) -> Non
             Exception: Any exception from init_client
         """
         try:
-            config = OTelConfig(mode="dev")
+            config = TelemetryConfig(enable_console_export=True)
             client = init_client(config)
             clients.append(client)
         except Exception as e:
@@ -58,21 +65,24 @@ def test_concurrent_init_client(in_memory_exporter: InMemorySpanExporter) -> Non
 
 
 def test_init_client_with_shutdown(in_memory_exporter: InMemorySpanExporter) -> None:
-    """Test init_client() shuts down existing client safely.
+    """Test reset_client() and reinitializing works safely.
 
     Args:
         in_memory_exporter: In-memory exporter fixture
     """
+    from uipath.core.otel.client import reset_client
+
     # Create first client
-    config1 = OTelConfig(mode="dev")
+    config1 = TelemetryConfig(enable_console_export=True)
     client1 = init_client(config1)
 
     # Verify first client works
     tracer1 = client1.get_tracer()
     assert tracer1 is not None
 
-    # Create second client (should shutdown first)
-    config2 = OTelConfig(mode="dev")
+    # Reset and create second client
+    reset_client()
+    config2 = TelemetryConfig(enable_console_export=True)
     client2 = init_client(config2)
 
     # Verify second client is different instance
@@ -88,7 +98,7 @@ def test_concurrent_reset_client() -> None:
     from uipath.core.otel.client import reset_client
 
     # Initialize client first
-    config = OTelConfig(mode="dev")
+    config = TelemetryConfig(enable_console_export=True)
     init_client(config)
 
     exceptions: list[Exception] = []
@@ -130,7 +140,7 @@ def test_concurrent_span_creation(in_memory_exporter: InMemorySpanExporter) -> N
     from uipath.core.otel.trace import Trace
 
     # Initialize client
-    config = OTelConfig(mode="dev")
+    config = TelemetryConfig(enable_console_export=True)
     client = init_client(config)
     tracer = client.get_tracer()
 
@@ -148,7 +158,7 @@ def test_concurrent_span_creation(in_memory_exporter: InMemorySpanExporter) -> N
         """
         try:
             with Trace(tracer, f"thread-{worker_id}") as trace_ctx:
-                with trace_ctx.generation(f"op-{worker_id}"):
+                with trace_ctx.span(f"op-{worker_id}", kind="generation"):
                     # Simulate work
                     time.sleep(0.01)
                     created_spans.append(f"thread-{worker_id}")
@@ -176,13 +186,19 @@ def test_concurrent_span_creation(in_memory_exporter: InMemorySpanExporter) -> N
     assert len(spans) == 20  # 10 root + 10 operations
 
 
+@pytest.mark.no_auto_tracer
 def test_race_condition_init_and_get(in_memory_exporter: InMemorySpanExporter) -> None:
     """Test race condition between init_client() and get_client().
 
     Args:
         in_memory_exporter: In-memory exporter fixture
     """
-    clients: list[OTelClient | None] = []
+    # Reset global state for this test
+    from opentelemetry import trace
+
+    trace._TRACER_PROVIDER = None  # type: ignore[attr-defined]
+    trace._TRACER_PROVIDER_SET_ONCE._done = False  # type: ignore[attr-defined]
+    clients: list[TelemetryClient | None] = []
     exceptions: list[Exception] = []
 
     def init_worker() -> None:
@@ -192,7 +208,7 @@ def test_race_condition_init_and_get(in_memory_exporter: InMemorySpanExporter) -
             Exception: Any exception during init
         """
         try:
-            config = OTelConfig(mode="dev")
+            config = TelemetryConfig(enable_console_export=True)
             client = init_client(config)
             clients.append(client)
         except Exception as e:
@@ -247,7 +263,7 @@ def test_concurrent_flush(in_memory_exporter: InMemorySpanExporter) -> None:
         in_memory_exporter: In-memory exporter fixture
     """
     # Initialize client and create some spans
-    config = OTelConfig(mode="dev")
+    config = TelemetryConfig(enable_console_export=True)
     client = init_client(config)
     tracer = client.get_tracer()
 

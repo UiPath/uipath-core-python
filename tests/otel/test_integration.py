@@ -5,8 +5,9 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from uipath.core.otel.client import OTelClient, OTelConfig, init_client
-from uipath.core.otel.decorator import generation, tool
+from uipath.core.otel.client import init_client
+from uipath.core.otel.config import TelemetryConfig
+from uipath.core.otel.decorator import traced
 from uipath.core.otel.trace import Trace
 
 if TYPE_CHECKING:
@@ -20,20 +21,20 @@ def test_end_to_end_trace(in_memory_exporter: InMemorySpanExporter) -> None:
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
     # Execute - create nested observations
     with Trace(tracer, "workflow", execution_id="exec-123") as trace_ctx:
-        with trace_ctx.agent("planner") as agent_obs:
+        with trace_ctx.span("planner", kind="agent") as agent_obs:
             agent_obs.set_attribute("plan", "Execute steps")
 
-        with trace_ctx.generation("llm-call", model="gpt-4") as gen_obs:
+        with trace_ctx.span("llm-call", kind="generation") as gen_obs:
             gen_obs.set_attribute("prompt", "Hello")
             gen_obs.set_attribute("response", "Hi there!")
 
-        with trace_ctx.tool("calculator") as tool_obs:
+        with trace_ctx.span("calculator", kind="tool") as tool_obs:
             tool_obs.set_attribute("operation", "add")
             tool_obs.set_attribute("result", 5)
 
@@ -64,11 +65,11 @@ def test_decorator_integration(in_memory_exporter: InMemorySpanExporter) -> None
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
-    @tool()
+    @traced(kind="tool")
     def fetch_data(query: str) -> dict[str, str]:
         """Fetch data tool.
 
@@ -80,7 +81,7 @@ def test_decorator_integration(in_memory_exporter: InMemorySpanExporter) -> None
         """
         return {"data": f"results for {query}"}
 
-    @generation()
+    @traced(kind="generation")
     def analyze_data(data: dict[str, str]) -> str:
         """Analyze data with LLM.
 
@@ -115,25 +116,19 @@ def test_decorator_integration(in_memory_exporter: InMemorySpanExporter) -> None
 
 
 def test_privacy_integration(in_memory_exporter: InMemorySpanExporter) -> None:
-    """Test privacy enforcement in real workflow.
+    """Test privacy enforcement in real workflow using hide flags.
 
     Args:
         in_memory_exporter: In-memory exporter fixture
     """
-    # Setup with privacy config
-    config = OTelConfig(
-        mode="dev",
-        privacy={
-            "redact_inputs": True,
-            "redact_outputs": True,
-        },
-    )
-    client = OTelClient(config)
+    # Setup
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
-    @generation()
+    @traced(kind="generation", hide_input=True, hide_output=True)
     def llm_call(user_input: str) -> dict[str, str]:
-        """LLM call.
+        """LLM call with privacy.
 
         Args:
             user_input: User input
@@ -145,21 +140,27 @@ def test_privacy_integration(in_memory_exporter: InMemorySpanExporter) -> None:
 
     # Execute
     with Trace(tracer, "workflow") as trace_ctx:
-        # Manual observation with privacy
-        with trace_ctx.generation("manual-gen") as obs:
-            obs.set_attribute("input_data", "sensitive")
-            obs.set_attribute("output_data", "secret")
+        # Manual observation with privacy flags
+        with trace_ctx.span("manual-gen", kind="generation") as obs:
+            obs.record_input({"data": "sensitive"}, hide=True)
+            obs.record_output({"result": "secret"}, hide=True)
 
-        # Decorated function (note: decorator doesn't auto-set input/output attrs)
+        # Decorated function with hide flags
         llm_call("user query")
 
     # Verify privacy applied
     client.flush()
     spans = in_memory_exporter.get_finished_spans()
     manual_span = next(s for s in spans if s.name == "manual-gen")
+    llm_span = next(s for s in spans if s.name == "llm_call")
 
-    assert manual_span.attributes.get("input_data") == "[REDACTED]"
-    assert manual_span.attributes.get("output_data") == "[REDACTED]"
+    # Manual observation should have redacted input/output
+    assert manual_span.attributes.get("input.value") == "[REDACTED]"
+    assert manual_span.attributes.get("output.value") == "[REDACTED]"
+
+    # Decorated function should have redacted input/output
+    assert llm_span.attributes.get("input.value") == "[REDACTED]"
+    assert llm_span.attributes.get("output.value") == "[REDACTED]"
 
 
 async def test_async_workflow(in_memory_exporter: InMemorySpanExporter) -> None:
@@ -169,11 +170,11 @@ async def test_async_workflow(in_memory_exporter: InMemorySpanExporter) -> None:
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
-    @generation()
+    @traced(kind="generation")
     async def async_llm(prompt: str) -> str:
         """Async LLM call.
 
@@ -186,7 +187,7 @@ async def test_async_workflow(in_memory_exporter: InMemorySpanExporter) -> None:
         await asyncio.sleep(0.01)
         return f"Response to: {prompt}"
 
-    @tool()
+    @traced(kind="tool")
     async def async_tool(input_val: str) -> str:
         """Async tool.
 
@@ -228,8 +229,8 @@ def test_multi_trace_isolation(in_memory_exporter: InMemorySpanExporter) -> None
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
     # Execute two separate traces
@@ -266,7 +267,7 @@ def test_singleton_client_integration(in_memory_exporter: InMemorySpanExporter) 
         in_memory_exporter: In-memory exporter fixture
     """
     # Initialize client via init_client
-    config = OTelConfig(mode="dev")
+    config = TelemetryConfig(enable_console_export=True)
     client = init_client(config)
     tracer = client.get_tracer()
 
@@ -292,11 +293,11 @@ def test_complex_nested_workflow(in_memory_exporter: InMemorySpanExporter) -> No
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
-    @tool()
+    @traced(kind="tool")
     def sub_tool(data: str) -> str:
         """Sub tool.
 
@@ -308,7 +309,7 @@ def test_complex_nested_workflow(in_memory_exporter: InMemorySpanExporter) -> No
         """
         return f"processed-{data}"
 
-    @generation()
+    @traced(kind="generation")
     def main_llm(prompt: str) -> str:
         """Main LLM.
 
@@ -325,9 +326,10 @@ def test_complex_nested_workflow(in_memory_exporter: InMemorySpanExporter) -> No
     # Execute
     with Trace(tracer, "workflow", execution_id="complex-123") as trace_ctx:
         # Manual observation
-        with trace_ctx.agent("orchestrator"):
+        with trace_ctx.span("orchestrator", kind="agent"):
             # Call decorated function from within manual observation
             response = main_llm("test")
+            assert "llm-response" in response
 
     # Verify complex hierarchy
     client.flush()
@@ -354,11 +356,11 @@ def test_error_propagation_integration(
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
-    @tool()
+    @traced(kind="tool")
     def failing_tool() -> None:
         """Tool that fails.
 
@@ -367,7 +369,7 @@ def test_error_propagation_integration(
         """
         raise RuntimeError("tool failed")
 
-    @generation()
+    @traced(kind="generation")
     def llm_with_tool() -> None:
         """LLM that calls failing tool.
 

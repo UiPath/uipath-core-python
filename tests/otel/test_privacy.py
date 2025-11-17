@@ -1,292 +1,207 @@
-"""Tests for privacy enforcement (CRITICAL fix validation)."""
+"""Tests for simplified privacy enforcement via hide flags."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from uipath.core.otel.client import OTelClient, OTelConfig
+from uipath.core.otel import traced
+from uipath.core.otel.client import init_client
+from uipath.core.otel.config import TelemetryConfig
 from uipath.core.otel.trace import Trace
 
 if TYPE_CHECKING:
     from opentelemetry.sdk.trace.export import InMemorySpanExporter
 
 
-def test_input_redaction(in_memory_exporter: InMemorySpanExporter) -> None:
-    """Test input attributes are redacted when privacy config enabled.
-
-    Args:
-        in_memory_exporter: In-memory exporter fixture
-    """
-    # Setup with privacy config
-    config = OTelConfig(
-        mode="dev",
-        privacy={"redact_inputs": True},
-    )
-    client = OTelClient(config)
-    tracer = client.get_tracer()
-
-    # Execute
-    with Trace(tracer, "privacy-test") as trace_ctx:
-        with trace_ctx.generation("test") as obs:
-            obs.set_attribute("user_input", "sensitive data")
-            obs.set_attribute("input_text", "secret information")
-            obs.set_attribute("output_text", "should not be redacted")
-
-    # Verify
-    client.flush()
-    spans = in_memory_exporter.get_finished_spans()
-    gen_span = next(s for s in spans if s.name == "test")
-
-    # Input attributes should be redacted
-    assert gen_span.attributes.get("user_input") == "[REDACTED]"
-    assert gen_span.attributes.get("input_text") == "[REDACTED]"
-
-    # Output attributes should NOT be redacted
-    assert gen_span.attributes.get("output_text") == "should not be redacted"
-
-
-def test_output_redaction(in_memory_exporter: InMemorySpanExporter) -> None:
-    """Test output attributes are redacted when privacy config enabled.
-
-    Args:
-        in_memory_exporter: In-memory exporter fixture
-    """
-    # Setup with privacy config
-    config = OTelConfig(
-        mode="dev",
-        privacy={"redact_outputs": True},
-    )
-    client = OTelClient(config)
-    tracer = client.get_tracer()
-
-    # Execute
-    with Trace(tracer, "privacy-test") as trace_ctx:
-        with trace_ctx.generation("test") as obs:
-            obs.set_attribute("model_output", "sensitive response")
-            obs.set_attribute("output_data", "secret result")
-            obs.set_attribute("input_data", "should not be redacted")
-
-    # Verify
-    client.flush()
-    spans = in_memory_exporter.get_finished_spans()
-    gen_span = next(s for s in spans if s.name == "test")
-
-    # Output attributes should be redacted
-    assert gen_span.attributes.get("model_output") == "[REDACTED]"
-    assert gen_span.attributes.get("output_data") == "[REDACTED]"
-
-    # Input attributes should NOT be redacted
-    assert gen_span.attributes.get("input_data") == "should not be redacted"
-
-
-def test_truncation(in_memory_exporter: InMemorySpanExporter) -> None:
-    """Test long attribute values are truncated.
-
-    Args:
-        in_memory_exporter: In-memory exporter fixture
-    """
-    # Setup with truncation config
-    config = OTelConfig(
-        mode="dev",
-        privacy={"max_attribute_length": 100},
-    )
-    client = OTelClient(config)
-    tracer = client.get_tracer()
-
-    # Execute - set attribute with 500 characters
-    long_value = "x" * 500
-
-    with Trace(tracer, "truncation-test") as trace_ctx:
-        with trace_ctx.generation("test") as obs:
-            obs.set_attribute("long_attribute", long_value)
-            obs.set_attribute("short_attribute", "short")
-
-    # Verify
-    client.flush()
-    spans = in_memory_exporter.get_finished_spans()
-    gen_span = next(s for s in spans if s.name == "test")
-
-    # Long attribute should be truncated
-    long_attr = gen_span.attributes.get("long_attribute")
-    assert long_attr is not None
-    assert len(long_attr) == 100 + len("...[truncated]")
-    assert long_attr.endswith("...[truncated]")
-    assert long_attr.startswith("x" * 100)
-
-    # Short attribute should not be truncated
-    assert gen_span.attributes.get("short_attribute") == "short"
-
-
-def test_privacy_config_integration(in_memory_exporter: InMemorySpanExporter) -> None:
-    """Test privacy config is properly integrated from client to observation.
+def test_record_input_hide_flag(in_memory_exporter: InMemorySpanExporter) -> None:
+    """Test record_input with hide=True redacts input.
 
     Args:
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    privacy_config = {
-        "redact_inputs": True,
-        "redact_outputs": True,
-        "max_attribute_length": 50,
-    }
-    config = OTelConfig(mode="dev", privacy=privacy_config)
-    client = OTelClient(config)
-
-    # Verify client stores privacy config
-    assert client.get_privacy_config() == privacy_config
-
-    # Verify observation uses client's privacy config
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
-    with Trace(tracer, "integration-test") as trace_ctx:
-        with trace_ctx.generation("test") as obs:
-            obs.set_attribute("input_data", "should be redacted")
-            obs.set_attribute("output_data", "also redacted")
-            obs.set_attribute("long_attr", "y" * 100)
 
-    # Verify all privacy rules applied
+    # Execute
+    with Trace(tracer, "privacy-test") as trace_ctx:
+        with trace_ctx.span("test", kind="generation") as obs:
+            obs.record_input({"sensitive": "data"}, hide=True)
+            obs.record_output({"result": "ok"}, hide=False)
+
+    # Verify
     client.flush()
     spans = in_memory_exporter.get_finished_spans()
     gen_span = next(s for s in spans if s.name == "test")
 
-    assert gen_span.attributes.get("input_data") == "[REDACTED]"
-    assert gen_span.attributes.get("output_data") == "[REDACTED]"
+    # Input should be redacted
+    assert gen_span.attributes.get("input.value") == "[REDACTED]"
 
-    long_attr = gen_span.attributes.get("long_attr")
-    assert long_attr is not None
-    assert len(long_attr) == 50 + len("...[truncated]")
+    # Output should be visible
+    assert '"result"' in gen_span.attributes.get("output.value", "")
 
 
-def test_no_privacy_config(in_memory_exporter: InMemorySpanExporter) -> None:
-    """Test attributes not redacted when no privacy config.
+def test_record_output_hide_flag(in_memory_exporter: InMemorySpanExporter) -> None:
+    """Test record_output with hide=True redacts output.
 
     Args:
         in_memory_exporter: In-memory exporter fixture
     """
-    # Setup without privacy config
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    # Setup
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
+    tracer = client.get_tracer()
+
+    # Execute
+    with Trace(tracer, "privacy-test") as trace_ctx:
+        with trace_ctx.span("test", kind="generation") as obs:
+            obs.record_input({"query": "search"}, hide=False)
+            obs.record_output({"pii": "sensitive"}, hide=True)
+
+    # Verify
+    client.flush()
+    spans = in_memory_exporter.get_finished_spans()
+    gen_span = next(s for s in spans if s.name == "test")
+
+    # Input should be visible
+    assert '"query"' in gen_span.attributes.get("input.value", "")
+
+    # Output should be redacted
+    assert gen_span.attributes.get("output.value") == "[REDACTED]"
+
+
+def test_both_hide_flags(in_memory_exporter: InMemorySpanExporter) -> None:
+    """Test hiding both input and output.
+
+    Args:
+        in_memory_exporter: In-memory exporter fixture
+    """
+    # Setup
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
+    tracer = client.get_tracer()
+
+    # Execute
+    with Trace(tracer, "privacy-test") as trace_ctx:
+        with trace_ctx.span("test", kind="tool") as obs:
+            obs.record_input({"card": "1234-5678"}, hide=True)
+            obs.record_output({"transaction": "approved"}, hide=True)
+
+    # Verify
+    client.flush()
+    spans = in_memory_exporter.get_finished_spans()
+    gen_span = next(s for s in spans if s.name == "test")
+
+    # Both should be redacted
+    assert gen_span.attributes.get("input.value") == "[REDACTED]"
+    assert gen_span.attributes.get("output.value") == "[REDACTED]"
+
+
+def test_decorator_hide_input(in_memory_exporter: InMemorySpanExporter) -> None:
+    """Test decorator hide_input flag.
+
+    Args:
+        in_memory_exporter: In-memory exporter fixture
+    """
+    # Setup
+    config = TelemetryConfig(enable_console_export=True)
+    init_client(config)
+
+    # Execute
+    @traced(kind="tool", hide_input=True)
+    def authenticate(api_key: str) -> dict:
+        return {"authenticated": True}
+
+    authenticate("secret-key-123")
+
+    # Verify
+    spans = in_memory_exporter.get_finished_spans()
+    auth_span = next(s for s in spans if s.name == "authenticate")
+
+    # Input should be redacted
+    assert auth_span.attributes.get("input.value") == "[REDACTED]"
+
+    # Output should be visible
+    assert '"authenticated"' in auth_span.attributes.get("output.value", "")
+
+
+def test_decorator_hide_output(in_memory_exporter: InMemorySpanExporter) -> None:
+    """Test decorator hide_output flag.
+
+    Args:
+        in_memory_exporter: In-memory exporter fixture
+    """
+    # Setup
+    config = TelemetryConfig(enable_console_export=True)
+    init_client(config)
+
+    # Execute
+    @traced(kind="generation", hide_output=True)
+    def extract_pii(document: str) -> dict:
+        return {"name": "John Doe", "ssn": "123-45-6789"}
+
+    extract_pii("document-id-456")
+
+    # Verify
+    spans = in_memory_exporter.get_finished_spans()
+    extract_span = next(s for s in spans if s.name == "extract_pii")
+
+    # Input should be visible
+    assert '"document"' in extract_span.attributes.get("input.value", "")
+
+    # Output should be redacted
+    assert extract_span.attributes.get("output.value") == "[REDACTED]"
+
+
+def test_decorator_hide_both(in_memory_exporter: InMemorySpanExporter) -> None:
+    """Test decorator hiding both input and output.
+
+    Args:
+        in_memory_exporter: In-memory exporter fixture
+    """
+    # Setup
+    config = TelemetryConfig(enable_console_export=True)
+    init_client(config)
+
+    # Execute
+    @traced(kind="tool", hide_input=True, hide_output=True)
+    def process_payment(card_number: str, amount: float) -> dict:
+        return {"transaction_id": "txn_123", "status": "approved"}
+
+    process_payment("4532-1111-2222-3333", 99.99)
+
+    # Verify
+    spans = in_memory_exporter.get_finished_spans()
+    payment_span = next(s for s in spans if s.name == "process_payment")
+
+    # Both should be redacted
+    assert payment_span.attributes.get("input.value") == "[REDACTED]"
+    assert payment_span.attributes.get("output.value") == "[REDACTED]"
+
+
+def test_no_hide_flags_default(in_memory_exporter: InMemorySpanExporter) -> None:
+    """Test that by default (no hide flags), everything is visible.
+
+    Args:
+        in_memory_exporter: In-memory exporter fixture
+    """
+    # Setup
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
     # Execute
     with Trace(tracer, "no-privacy-test") as trace_ctx:
-        with trace_ctx.generation("test") as obs:
-            obs.set_attribute("input_data", "visible input")
-            obs.set_attribute("output_data", "visible output")
-            obs.set_attribute("long_attr", "x" * 500)
-
-    # Verify nothing redacted or truncated
-    client.flush()
-    spans = in_memory_exporter.get_finished_spans()
-    gen_span = next(s for s in spans if s.name == "test")
-
-    assert gen_span.attributes.get("input_data") == "visible input"
-    assert gen_span.attributes.get("output_data") == "visible output"
-    assert gen_span.attributes.get("long_attr") == "x" * 500
-
-
-def test_case_insensitive_privacy(in_memory_exporter: InMemorySpanExporter) -> None:
-    """Test privacy rules are case-insensitive.
-
-    Args:
-        in_memory_exporter: In-memory exporter fixture
-    """
-    # Setup
-    config = OTelConfig(
-        mode="dev",
-        privacy={"redact_inputs": True, "redact_outputs": True},
-    )
-    client = OTelClient(config)
-    tracer = client.get_tracer()
-
-    # Execute - test various case combinations
-    with Trace(tracer, "case-test") as trace_ctx:
-        with trace_ctx.generation("test") as obs:
-            obs.set_attribute("INPUT", "test1")
-            obs.set_attribute("input", "test2")
-            obs.set_attribute("Input", "test3")
-            obs.set_attribute("user_input", "test4")
-            obs.set_attribute("input_data", "test5")
-            obs.set_attribute("OUTPUT", "test6")
-            obs.set_attribute("output", "test7")
-            obs.set_attribute("Output", "test8")
-            obs.set_attribute("model_output", "test9")
-            obs.set_attribute("output_text", "test10")
-
-    # Verify all variations redacted
-    client.flush()
-    spans = in_memory_exporter.get_finished_spans()
-    gen_span = next(s for s in spans if s.name == "test")
-
-    # All input variations should be redacted
-    assert gen_span.attributes.get("INPUT") == "[REDACTED]"
-    assert gen_span.attributes.get("input") == "[REDACTED]"
-    assert gen_span.attributes.get("Input") == "[REDACTED]"
-    assert gen_span.attributes.get("user_input") == "[REDACTED]"
-    assert gen_span.attributes.get("input_data") == "[REDACTED]"
-
-    # All output variations should be redacted
-    assert gen_span.attributes.get("OUTPUT") == "[REDACTED]"
-    assert gen_span.attributes.get("output") == "[REDACTED]"
-    assert gen_span.attributes.get("Output") == "[REDACTED]"
-    assert gen_span.attributes.get("model_output") == "[REDACTED]"
-    assert gen_span.attributes.get("output_text") == "[REDACTED]"
-
-
-def test_privacy_with_dict_serialization(
-    in_memory_exporter: InMemorySpanExporter,
-) -> None:
-    """Test privacy applies before JSON serialization of dicts.
-
-    Args:
-        in_memory_exporter: In-memory exporter fixture
-    """
-    # Setup
-    config = OTelConfig(
-        mode="dev",
-        privacy={"redact_inputs": True},
-    )
-    client = OTelClient(config)
-    tracer = client.get_tracer()
-
-    # Execute - set dict value (will be JSON serialized)
-    with Trace(tracer, "dict-test") as trace_ctx:
-        with trace_ctx.generation("test") as obs:
-            obs.set_attribute("input_dict", {"key": "value"})
-            obs.set_attribute("other_dict", {"key": "value"})
+        with trace_ctx.span("test", kind="tool") as obs:
+            obs.record_input({"data": "visible input"})
+            obs.record_output({"result": "visible output"})
 
     # Verify
     client.flush()
     spans = in_memory_exporter.get_finished_spans()
     gen_span = next(s for s in spans if s.name == "test")
 
-    # Input dict should be redacted (before serialization)
-    assert gen_span.attributes.get("input_dict") == "[REDACTED]"
-
-    # Other dict should be serialized normally
-    assert gen_span.attributes.get("other_dict") == '{"key": "value"}'
-
-
-def test_privacy_empty_config(in_memory_exporter: InMemorySpanExporter) -> None:
-    """Test empty privacy config dict doesn't break anything.
-
-    Args:
-        in_memory_exporter: In-memory exporter fixture
-    """
-    # Setup with empty privacy config
-    config = OTelConfig(mode="dev", privacy={})
-    client = OTelClient(config)
-    tracer = client.get_tracer()
-
-    # Execute
-    with Trace(tracer, "empty-config-test") as trace_ctx:
-        with trace_ctx.generation("test") as obs:
-            obs.set_attribute("input_data", "visible")
-            obs.set_attribute("output_data", "visible")
-
-    # Verify nothing redacted
-    client.flush()
-    spans = in_memory_exporter.get_finished_spans()
-    gen_span = next(s for s in spans if s.name == "test")
-
-    assert gen_span.attributes.get("input_data") == "visible"
-    assert gen_span.attributes.get("output_data") == "visible"
+    # Both should be visible
+    assert '"data"' in gen_span.attributes.get("input.value", "")
+    assert '"result"' in gen_span.attributes.get("output.value", "")

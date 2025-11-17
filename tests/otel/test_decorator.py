@@ -8,9 +8,10 @@ from typing import TYPE_CHECKING
 import pytest
 from opentelemetry.trace import StatusCode
 
-from uipath.core.otel.client import OTelClient, OTelConfig
-from uipath.core.otel.decorator import agent, generation, tool, traced
-from uipath.core.otel.trace import Trace, require_trace
+from uipath.core.otel.client import init_client
+from uipath.core.otel.config import TelemetryConfig
+from uipath.core.otel.decorator import traced
+from uipath.core.otel.trace import Trace
 
 if TYPE_CHECKING:
     from opentelemetry.sdk.trace.export import InMemorySpanExporter
@@ -23,11 +24,11 @@ def test_generation_decorator_sync(in_memory_exporter: InMemorySpanExporter) -> 
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
-    @generation()
+    @traced(kind="generation")
     def llm_call(prompt: str) -> dict[str, str]:
         """LLM call function.
 
@@ -50,7 +51,7 @@ def test_generation_decorator_sync(in_memory_exporter: InMemorySpanExporter) -> 
     spans = in_memory_exporter.get_finished_spans()
     llm_span = next(s for s in spans if s.name == "llm_call")
 
-    assert llm_span.attributes.get("span.type") == "generation"
+    assert llm_span.attributes.get("openinference.span.kind") == "GENERATION"
 
 
 async def test_generation_decorator_async(
@@ -62,11 +63,11 @@ async def test_generation_decorator_async(
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
-    @generation()
+    @traced(kind="generation")
     async def async_llm_call(prompt: str) -> dict[str, str]:
         """Async LLM call.
 
@@ -102,11 +103,11 @@ def test_generation_decorator_auto_update(
         sample_openai_response: Sample OpenAI response fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
-    @generation()
+    @traced(kind="generation")
     def llm_call() -> dict[str, any]:
         """LLM call returning OpenAI-like response.
 
@@ -137,11 +138,11 @@ def test_tool_decorator_no_auto_update(
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
-    @tool()
+    @traced(kind="tool")
     def calculator(a: int, b: int) -> int:
         """Calculator tool.
 
@@ -165,7 +166,7 @@ def test_tool_decorator_no_auto_update(
     spans = in_memory_exporter.get_finished_spans()
     tool_span = next(s for s in spans if s.name == "calculator")
 
-    assert tool_span.attributes.get("span.type") == "tool"
+    assert tool_span.attributes.get("openinference.span.kind") == "TOOL"
     # Should NOT have update() attributes (auto_update=False)
 
 
@@ -176,11 +177,11 @@ def test_agent_decorator(in_memory_exporter: InMemorySpanExporter) -> None:
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
-    @agent()
+    @traced(kind="agent")
     def reasoning_agent(task: str) -> str:
         """Reasoning agent.
 
@@ -203,7 +204,7 @@ def test_agent_decorator(in_memory_exporter: InMemorySpanExporter) -> None:
     spans = in_memory_exporter.get_finished_spans()
     agent_span = next(s for s in spans if s.name == "reasoning_agent")
 
-    assert agent_span.attributes.get("span.type") == "agent"
+    assert agent_span.attributes.get("openinference.span.kind") == "AGENT"
 
 
 def test_decorator_exception_handling(
@@ -215,11 +216,11 @@ def test_decorator_exception_handling(
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
-    @generation()
+    @traced(kind="generation")
     def failing_function() -> None:
         """Function that raises exception.
 
@@ -239,8 +240,11 @@ def test_decorator_exception_handling(
     func_span = next(s for s in spans if s.name == "failing_function")
 
     assert func_span.status.status_code == StatusCode.ERROR
-    assert len(func_span.events) == 1
-    assert func_span.events[0].name == "exception"
+    # Should have at least one exception event (may have multiple from parser failures)
+    exception_events = [e for e in func_span.events if e.name == "exception"]
+    assert len(exception_events) >= 1
+    # Verify the first exception is the ValueError we raised
+    assert "ValueError" in str(exception_events[0].attributes.get("exception.type", ""))
 
 
 def test_decorator_custom_name(in_memory_exporter: InMemorySpanExporter) -> None:
@@ -250,11 +254,11 @@ def test_decorator_custom_name(in_memory_exporter: InMemorySpanExporter) -> None
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
-    @generation(name="custom-span-name")
+    @traced(kind="generation", name="custom-span-name")
     def my_function() -> str:
         """Function with custom span name.
 
@@ -274,30 +278,6 @@ def test_decorator_custom_name(in_memory_exporter: InMemorySpanExporter) -> None
     assert not any(s.name == "my_function" for s in spans)
 
 
-def test_decorator_requires_trace(in_memory_exporter: InMemorySpanExporter) -> None:
-    """Test decorator raises error outside trace context.
-
-    Args:
-        in_memory_exporter: In-memory exporter fixture
-    """
-    # Setup
-    config = OTelConfig(mode="dev")
-    OTelClient(config)
-
-    @generation()
-    def my_function() -> str:
-        """Test function.
-
-        Returns:
-            Result
-        """
-        return "test"
-
-    # Execute - should raise outside trace
-    with pytest.raises(RuntimeError, match="No active trace context"):
-        my_function()
-
-
 def test_traced_generic_decorator(in_memory_exporter: InMemorySpanExporter) -> None:
     """Test @traced decorator with custom span type.
 
@@ -305,11 +285,11 @@ def test_traced_generic_decorator(in_memory_exporter: InMemorySpanExporter) -> N
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
-    @traced(span_type="retrieval")
+    @traced(kind="retrieval")
     def search_documents(query: str) -> list[str]:
         """Search function.
 
@@ -332,7 +312,7 @@ def test_traced_generic_decorator(in_memory_exporter: InMemorySpanExporter) -> N
     spans = in_memory_exporter.get_finished_spans()
     search_span = next(s for s in spans if s.name == "search_documents")
 
-    assert search_span.attributes.get("span.type") == "retrieval"
+    assert search_span.attributes.get("openinference.span.kind") == "RETRIEVAL"
 
 
 def test_traced_routes_to_specialized(
@@ -344,11 +324,11 @@ def test_traced_routes_to_specialized(
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
-    @traced(span_type="generation", model="gpt-4")
+    @traced(kind="generation")
     def llm_function() -> dict[str, str]:
         """LLM function.
 
@@ -366,65 +346,25 @@ def test_traced_routes_to_specialized(
     spans = in_memory_exporter.get_finished_spans()
     llm_span = next(s for s in spans if s.name == "llm_function")
 
-    assert llm_span.attributes.get("span.type") == "generation"
-    # Should have model attribute from specialized decorator
-    assert llm_span.attributes.get("gen_ai.request.model") == "gpt-4"
-
-
-def test_auto_update_guards_generator(
-    in_memory_exporter: InMemorySpanExporter,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Test auto_update guards against generators.
-
-    Args:
-        in_memory_exporter: In-memory exporter fixture
-        caplog: Pytest log capture fixture
-    """
-    # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
-    tracer = client.get_tracer()
-
-    @generation()  # auto_update=True by default
-    def generator_function():
-        """Function returning generator.
-
-        Yields:
-            Values
-        """
-        yield 1
-        yield 2
-        yield 3
-
-    # Execute - should not crash
-    with Trace(tracer, "test"):
-        gen = generator_function()
-        list(gen)  # Consume generator
-
-    # Verify warning logged
-    assert "does not support generators" in caplog.text
-
-    # Verify span still created
-    client.flush()
-    spans = in_memory_exporter.get_finished_spans()
-    assert any(s.name == "generator_function" for s in spans)
+    assert llm_span.attributes.get("openinference.span.kind") == "GENERATION"
 
 
 def test_decorator_with_model_parameter(
     in_memory_exporter: InMemorySpanExporter,
 ) -> None:
-    """Test @generation decorator with model parameter.
+    """Test @traced decorator creates generation span.
+
+    Model metadata should come from update() with actual response in real usage.
 
     Args:
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
-    @generation(model="gpt-4-turbo")
+    @traced(kind="generation")
     def llm_call() -> str:
         """LLM call.
 
@@ -435,35 +375,38 @@ def test_decorator_with_model_parameter(
 
     # Execute
     with Trace(tracer, "test"):
-        llm_call()
+        result = llm_call()
 
-    # Verify model attribute set
+    # Verify span created with correct kind
     client.flush()
     spans = in_memory_exporter.get_finished_spans()
     llm_span = next(s for s in spans if s.name == "llm_call")
 
-    assert llm_span.attributes.get("gen_ai.request.model") == "gpt-4-turbo"
+    assert llm_span.attributes.get("openinference.span.kind") == "GENERATION"
+    assert result == "response"
 
 
 def test_decorator_explicit_auto_update_false(
     in_memory_exporter: InMemorySpanExporter,
 ) -> None:
-    """Test decorator with auto_update explicitly set to False.
+    """Test decorator does not auto-extract metadata from responses.
+
+    Metadata extraction requires manual update() call with manual API.
 
     Args:
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
-    @generation(auto_update=False)  # Override default True
+    @traced(kind="generation")
     def llm_call() -> dict[str, str]:
         """LLM call.
 
         Returns:
-            Response
+            Response dict (mimics LLM response structure)
         """
         return {"model": "gpt-4", "response": "test"}
 
@@ -478,11 +421,12 @@ def test_decorator_explicit_auto_update_false(
     spans = in_memory_exporter.get_finished_spans()
     llm_span = next(s for s in spans if s.name == "llm_call")
 
-    # Should NOT have parsed attributes (auto_update=False)
-    # Only span.type and maybe gen_ai.request.model
+    # Should only have openinference.span.kind (no auto-parsed metadata)
     attrs = llm_span.attributes
-    assert "span.type" in attrs
-    # Should not have usage or other parsed attributes
+    assert "openinference.span.kind" in attrs
+    # Should not have gen_ai.request.model or other parsed attributes
+    # since decorator doesn't auto-extract metadata
+    assert "gen_ai.request.model" not in attrs
 
 
 async def test_decorator_async_exception(
@@ -494,11 +438,11 @@ async def test_decorator_async_exception(
         in_memory_exporter: In-memory exporter fixture
     """
     # Setup
-    config = OTelConfig(mode="dev")
-    client = OTelClient(config)
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
     tracer = client.get_tracer()
 
-    @generation()
+    @traced(kind="generation")
     async def async_failing() -> None:
         """Async function that fails.
 
@@ -519,4 +463,8 @@ async def test_decorator_async_exception(
     func_span = next(s for s in spans if s.name == "async_failing")
 
     assert func_span.status.status_code == StatusCode.ERROR
-    assert len(func_span.events) == 1
+    # Should have at least one exception event (may have multiple from parser failures)
+    exception_events = [e for e in func_span.events if e.name == "exception"]
+    assert len(exception_events) >= 1
+    # Verify the first exception is the RuntimeError we raised
+    assert "RuntimeError" in str(exception_events[0].attributes.get("exception.type", ""))

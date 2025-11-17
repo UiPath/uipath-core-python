@@ -1,163 +1,106 @@
-"""UiPath OpenTelemetry-based telemetry library.
+"""UiPath OpenTelemetry integration.
 
-This module provides a developer-friendly API for instrumenting Python applications
-with OpenTelemetry tracing, featuring smart provider response parsing and
-both decorator and context manager patterns.
+This module provides a simple, batteries-included OpenTelemetry integration
+for UiPath Python applications with AI/LLM observability.
 
 Example:
     from uipath.core import otel
-    import openai
 
-    # Initialize once
-    otel.init(public_key="pk_...", mode="auto")
+    # Initialize telemetry (development mode)
+    otel.init(enable_console_export=True)
 
-    # Pattern 1: Decorator with auto-update
-    @otel.generation(model="gpt-4")
+    # Production mode
+    otel.init(
+        endpoint="https://telemetry.uipath.com",
+        service_name="invoice-processor",
+    )
+
+    # Decorate functions
+    @otel.traced(kind="generation")
     def extract_invoice(prompt: str) -> dict:
-        result = openai.chat.completions.create(...)
-        return result  # Auto-updated
+        response = openai.chat.completions.create(...)
+        return response
 
-    # Pattern 2: Context manager for complex workflows
+    # Use trace context
     with otel.trace("workflow", execution_id="exec-123") as trace:
-        with trace.generation(name="llm", model="gpt-4") as gen:
-            result = openai.chat.completions.create(...)
-            gen.update(result)  # Smart parsing
-
-    # Pattern 3: Hybrid (both)
-    with otel.trace("workflow") as trace:
-        @otel.generation(model="gpt-4")
-        def nested_call():
-            return openai.chat.completions.create(...)
+        result = extract_invoice("Extract from PDF...")
 """
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any
 
-from .client import OTelClient, OTelConfig, get_client, init_client
-from .decorator import agent, generation, tool, traced
+from .client import TelemetryClient, get_client, init_client
+from .config import TelemetryConfig
+from .decorator import traced
+from .observation import ObservationSpan
 from .trace import Trace
 
-if TYPE_CHECKING:
-    pass
-
-logger = logging.getLogger(__name__)
-
-# Library version (sync with pyproject.toml)
-__version__ = "1.0.0"
-
-# Public API exports
 __all__ = [
-    # Initialization
+    # Client
+    "TelemetryClient",
     "init",
-    # Context managers
-    "trace",
-    # Decorators
-    "generation",
-    "tool",
-    "agent",
-    "traced",
-    # Lifecycle
     "shutdown",
     "flush",
+    # Tracing
+    "trace",
+    "traced",
+    # Observation
+    "ObservationSpan",
+    # Config
+    "TelemetryConfig",
 ]
 
 
+# ============================================================================
+# Initialization API
+# ============================================================================
+
+
 def init(
-    public_key: str | None = None,
-    mode: Literal["auto", "dev", "prod", "disabled"] = "auto",
-    service_name: str | None = None,
-    resource_attributes: dict[str, str] | None = None,
-    privacy: dict[str, Any] | None = None,
-    exporter: Literal["otlp", "console"] = "otlp",
     endpoint: str | None = None,
-    headers: dict[str, str] | None = None,
-    auto_instrument: bool = False,
-) -> OTelClient:
-    """Initialize OpenTelemetry telemetry client.
+    service_name: str | None = None,
+    enable_console_export: bool = False,
+    resource_attributes: dict[str, str] | None = None,
+) -> TelemetryClient:
+    """Initialize OpenTelemetry client with UiPath configuration.
+
+    Privacy is controlled per-span using hide_input/hide_output flags.
+    Sampling rate is hardcoded to 1.0 (100% sampling).
 
     Args:
-        public_key: UiPath public key for authentication
-        mode: Operating mode - auto (env detection), dev, prod, or disabled
+        endpoint: OTLP endpoint URL (None = console exporter for dev)
         service_name: Service name for resource attributes
+        enable_console_export: Enable console exporter (for debugging)
         resource_attributes: Additional resource attributes
-        privacy: Privacy configuration dict
-        exporter: Exporter type - otlp or console
-        endpoint: OTLP endpoint URL
-        headers: Additional headers for OTLP exporter
-        auto_instrument: Whether to enable auto-instrumentation
 
     Returns:
-        Initialized OTel client
+        Initialized TelemetryClient
 
     Example:
+        import otel
+
+        # Development mode (console output)
+        otel.init(enable_console_export=True)
+
+        # Production mode
         otel.init(
-            public_key="pk_...",
-            mode="auto",
+            endpoint="https://telemetry.uipath.com",
             service_name="invoice-processor",
-            resource_attributes={"uipath.org_id": "org-123"},
         )
+
+        # Privacy controlled at decorator level
+        @otel.traced(kind="tool", hide_input=True)
+        def authenticate(api_key: str):
+            ...
     """
-    config = OTelConfig(
-        public_key=public_key,
-        mode=mode,
-        service_name=service_name,
-        resource_attributes=resource_attributes,
-        privacy=privacy,
-        exporter=exporter,
+    config = TelemetryConfig(
         endpoint=endpoint,
-        headers=headers,
-        auto_instrument=auto_instrument,
+        service_name=service_name or "uipath-service",
+        enable_console_export=enable_console_export,
+        resource_attributes=resource_attributes,
     )
-
-    client = init_client(config)
-    logger.info(
-        "OTel telemetry initialized: mode=%s, service=%s",
-        config.mode,
-        config.service_name,
-    )
-    return client
-
-
-def trace(
-    name: str,
-    execution_id: str | None = None,
-    user_id: str | None = None,
-    metadata: dict[str, Any] | None = None,
-) -> Trace:
-    """Create a trace context manager for instrumenting a workflow.
-
-    Args:
-        name: Trace name
-        execution_id: Execution ID for correlation
-        user_id: User ID for correlation
-        metadata: Additional metadata attributes
-
-    Returns:
-        Trace context manager
-
-    Example:
-        with otel.trace("invoice-workflow", execution_id="exec-123") as trace:
-            with trace.generation(name="llm", model="gpt-4") as gen:
-                result = openai.chat.completions.create(...)
-                gen.update(result)
-
-            with trace.tool(name="validate") as tool:
-                validation = validate_invoice(result)
-                tool.set_attribute("valid", validation.passed)
-
-            print(f"View trace: {trace.get_url()}")
-    """
-    client = get_client()
-    tracer = client.get_tracer()
-    return Trace(
-        tracer=tracer,
-        name=name,
-        execution_id=execution_id,
-        user_id=user_id,
-        metadata=metadata,
-    )
+    return init_client(config)
 
 
 def shutdown(timeout_seconds: float = 10.0) -> bool:
@@ -169,20 +112,11 @@ def shutdown(timeout_seconds: float = 10.0) -> bool:
     Returns:
         True if shutdown successful
 
-    Example:
-        try:
-            # Run application
-            process_workflows()
-        finally:
-            otel.shutdown(timeout_seconds=10)
+    Raises:
+        RuntimeError: If client not initialized (call init() first)
     """
-    try:
-        client = get_client()
-        return client.shutdown(timeout_seconds=timeout_seconds)
-    except RuntimeError:
-        # Client not initialized
-        logger.debug("Client not initialized, nothing to shutdown")
-        return True
+    client = get_client()
+    return client.shutdown(timeout_seconds)
 
 
 def flush(timeout_seconds: float = 5.0) -> bool:
@@ -194,14 +128,44 @@ def flush(timeout_seconds: float = 5.0) -> bool:
     Returns:
         True if flush successful
 
-    Example:
-        # After processing batch of operations
-        otel.flush(timeout_seconds=5)
+    Raises:
+        RuntimeError: If client not initialized (call init() first)
     """
-    try:
-        client = get_client()
-        return client.flush(timeout_seconds=timeout_seconds)
-    except RuntimeError:
-        # Client not initialized
-        logger.debug("Client not initialized, nothing to flush")
-        return True
+    client = get_client()
+    return client.flush(timeout_seconds)
+
+
+# ============================================================================
+# Trace Context API
+# ============================================================================
+
+
+def trace(
+    name: str,
+    execution_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> Trace:
+    """Create trace context manager for workflow execution.
+
+    Args:
+        name: Trace name
+        execution_id: Execution ID for correlation
+        metadata: Additional metadata attributes
+
+    Returns:
+        Trace context manager
+
+    Example:
+        with otel.trace("invoice-workflow", execution_id="exec-123") as trace:
+            result = extract_invoice(...)
+            url = trace.get_url()
+            print(f"View trace: {url}")
+    """
+    client = get_client()
+    tracer = client.get_tracer()
+    return Trace(
+        tracer=tracer,
+        name=name,
+        execution_id=execution_id,
+        metadata=metadata,
+    )

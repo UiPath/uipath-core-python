@@ -96,7 +96,7 @@ def can_parse(response: Any) -> bool:
 def _register_default_parsers() -> None:
     """Register default parsers for common providers."""
     try:
-        from .openai_parser import parse_openai_response
+        from ..openai._parser import parse_openai_response
 
         register_parser("openai.ChatCompletion", parse_openai_response)
         register_parser("openai.types.chat.ChatCompletion", parse_openai_response)
@@ -104,7 +104,7 @@ def _register_default_parsers() -> None:
         logger.debug("OpenAI parser not available (openai not installed)")
 
     try:
-        from .anthropic_parser import parse_anthropic_response
+        from ..anthropic._parser import parse_anthropic_response
 
         register_parser("anthropic.Message", parse_anthropic_response)
         register_parser("anthropic.types.Message", parse_anthropic_response)

@@ -1,7 +1,6 @@
-"""Observation classes for wrapping OpenTelemetry spans.
+"""Observation wrapper for OpenTelemetry spans.
 
-This module provides high-level observation classes that wrap OTel spans
-and provide semantic methods for recording inputs, outputs, and errors.
+Minimal design: no processors, no kwargs, parser-driven metadata extraction.
 """
 
 from __future__ import annotations
@@ -14,35 +13,52 @@ from opentelemetry import context as context_api
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
+from .attributes import Attr
+
 if TYPE_CHECKING:
     from opentelemetry.trace import Span
 
 logger = logging.getLogger(__name__)
 
 
-class Observation:
-    """Base observation class wrapping an OpenTelemetry span.
+class ObservationSpan:
+    """Observation wrapper for OpenTelemetry spans.
 
-    Provides semantic methods for recording span attributes, status, and exceptions.
+    Minimal design: Just wrap span and set kind. All metadata comes from
+    parsers via update() method for guaranteed accuracy.
+
+    Example:
+        span = tracer.start_span("llm-call")
+        obs = ObservationSpan(span, kind="generation")
+
+        with obs:
+            obs.record_input({"prompt": "Hello"})
+            response = openai.chat.completions.create(...)
+            obs.record_output(response)
+            obs.update(response)  # Parsers extract model, tokens, etc.
     """
 
-    def __init__(self, span: Span) -> None:
-        """Initialize observation with OTel span.
+    def __init__(self, span: Span, kind: str | None = None):
+        """Initialize observation with span.
 
         Args:
             span: OpenTelemetry span to wrap
+            kind: Span kind for classification (generation, tool, agent, etc.)
+                 No metadata is set from kwargs - use update() with parser instead.
         """
         self._span = span
+        self._kind = kind
         self._context_token: object | None = None
 
-    def __enter__(self) -> Observation:
+        if kind:
+            span.set_attribute(Attr.Common.OPENINFERENCE_SPAN_KIND, kind.upper())
+
+    def __enter__(self) -> ObservationSpan:
         """Enter context manager and activate span.
 
         Returns:
             Self for use in with statement
         """
-        # CRITICAL FIX: Activate span in OpenTelemetry context
-        # This ensures child spans properly link to this parent
         ctx = trace.set_span_in_context(self._span)
         self._context_token = context_api.attach(ctx)
         return self
@@ -55,18 +71,92 @@ class Observation:
             exc_val: Exception value if raised
             exc_tb: Exception traceback if raised
         """
-        # CRITICAL FIX: Restore previous context
-        if self._context_token is not None:
-            context_api.detach(self._context_token)
-            self._context_token = None
+        context_api.detach(self._context_token)
+        self._context_token = None
 
         if exc_val:
             self.record_exception(exc_val)
-            self.set_status(StatusCode.ERROR, str(exc_val))
         self._span.end()
 
-    def set_attribute(self, key: str, value: Any) -> Observation:
-        """Set a span attribute with privacy enforcement.
+    def record_input(self, value: Any, hide: bool = False) -> ObservationSpan:
+        """Record input value.
+
+        Args:
+            value: Input value to record
+            hide: If True, record as "[REDACTED]" instead of actual value
+
+        Returns:
+            Self for method chaining
+        """
+        if hide:
+            self.set_attribute(Attr.Common.INPUT_VALUE, "[REDACTED]")
+            return self
+
+        try:
+            serialized = json.dumps(value)
+            self.set_attribute(Attr.Common.INPUT_VALUE, serialized)
+            self.set_attribute(Attr.Common.INPUT_MIME_TYPE, "application/json")
+        except (TypeError, ValueError):
+            self.set_attribute(Attr.Common.INPUT_VALUE, str(value))
+
+        return self
+
+    def record_output(self, value: Any, hide: bool = False) -> ObservationSpan:
+        """Record output value.
+
+        Args:
+            value: Output value to record
+            hide: If True, record as "[REDACTED]" instead of actual value
+
+        Returns:
+            Self for method chaining
+
+        Note:
+            For LLM responses, call update(response) after this to extract
+            metadata like model, tokens, etc. via parsers.
+        """
+        if hide:
+            self.set_attribute(Attr.Common.OUTPUT_VALUE, "[REDACTED]")
+            return self
+
+        try:
+            serialized = json.dumps(value)
+            self.set_attribute(Attr.Common.OUTPUT_VALUE, serialized)
+            self.set_attribute(Attr.Common.OUTPUT_MIME_TYPE, "application/json")
+        except (TypeError, ValueError):
+            self.set_attribute(Attr.Common.OUTPUT_VALUE, str(value))
+
+        return self
+
+    def record_exception(
+        self, exception: Exception, attributes: dict[str, Any] | None = None
+    ) -> ObservationSpan:
+        """Record exception on span.
+
+        Args:
+            exception: Exception to record
+            attributes: Optional custom attributes for the exception event
+
+        Returns:
+            Self for method chaining
+        """
+        try:
+            self._span.record_exception(exception, attributes=attributes)
+            self._span.set_status(Status(StatusCode.ERROR, str(exception)))
+
+            error_type = type(exception).__name__
+            self.set_attribute(Attr.Error.TYPE, error_type)
+
+            error_str = str(exception).lower()
+            if "rate" in error_str or "429" in error_str:
+                self.set_attribute(Attr.Error.RATE_LIMITED, True)
+        except Exception as e:
+            logger.error("Failed to record exception: %s", e, exc_info=True)
+
+        return self
+
+    def set_attribute(self, key: str, value: Any) -> ObservationSpan:
+        """Set span attribute.
 
         Args:
             key: Attribute key
@@ -76,57 +166,20 @@ class Observation:
             Self for method chaining
         """
         try:
-            # CRITICAL FIX: Apply privacy sanitization before setting attribute
-            sanitized_value = self._sanitize_value(key, value)
+            if isinstance(value, (dict, list)):
+                value = json.dumps(value)
 
-            # Serialize complex types to JSON
-            if isinstance(sanitized_value, (dict, list)):
-                sanitized_value = json.dumps(sanitized_value)
-            self._span.set_attribute(key, sanitized_value)
+            self._span.set_attribute(key, value)
         except Exception as e:
             logger.warning("Failed to set attribute %s: %s", key, e)
+
         return self
-
-    def _sanitize_value(self, key: str, value: Any) -> Any:
-        """Apply privacy rules to attribute value.
-
-        Args:
-            key: Attribute key
-            value: Original value
-
-        Returns:
-            Sanitized value
-        """
-        # Get privacy config from client
-        try:
-            from .client import get_client
-
-            privacy_config = get_client().get_privacy_config()
-        except RuntimeError:
-            # Client not initialized, skip privacy
-            return value
-
-        if not privacy_config:
-            return value
-
-        # Apply redaction rules
-        if privacy_config.get("redact_inputs") and "input" in key.lower():
-            return "[REDACTED]"
-        if privacy_config.get("redact_outputs") and "output" in key.lower():
-            return "[REDACTED]"
-
-        # Apply truncation rules
-        max_length = privacy_config.get("max_attribute_length", 10000)
-        if isinstance(value, str) and len(value) > max_length:
-            return value[:max_length] + "...[truncated]"
-
-        return value
 
     def set_status(
         self,
         status: StatusCode,
         description: str | None = None,
-    ) -> Observation:
+    ) -> ObservationSpan:
         """Set span status.
 
         Args:
@@ -139,165 +192,51 @@ class Observation:
         self._span.set_status(Status(status, description))
         return self
 
-    def record_exception(
-        self,
-        exception: Exception,
-        attributes: dict[str, Any] | None = None,
-    ) -> Observation:
-        """Record an exception in the span.
+    def update(self, provider_response: Any) -> ObservationSpan:
+        """Update observation with provider response (parser-based extraction).
+
+        This is the KEY method for accurate metadata. Parsers extract:
+        - Model name (actual model used, not declared)
+        - Token counts (prompt, completion, total)
+        - Response IDs, finish reasons, tool calls
+        - Any provider-specific metadata
 
         Args:
-            exception: Exception to record
-            attributes: Optional additional attributes
+            provider_response: Response object from LLM provider
+                             (OpenAI ChatCompletion, Anthropic Message, etc.)
 
         Returns:
             Self for method chaining
+
+        Example:
+            obs = ObservationSpan(span, kind="generation")
+            response = openai.chat.completions.create(...)
+            obs.record_output(response)
+            obs.update(response)  # Extracts model, tokens, etc.
         """
-        self._span.record_exception(exception, attributes=attributes)
-        return self
-
-    def update(self, provider_response: Any) -> None:
-        """Update observation with provider response.
-
-        This is a placeholder that should be overridden by subclasses
-        to implement smart parsing of provider-specific responses.
-
-        Args:
-            provider_response: Response from provider (e.g., OpenAI, Anthropic)
-        """
-        logger.debug(
-            "update() called on base Observation - no parsing implemented for type: %s",
-            type(provider_response).__name__,
-        )
-
-
-class GenerationObservation(Observation):
-    """Observation for LLM generation spans.
-
-    Provides smart update() method that parses provider responses (OpenAI, Anthropic)
-    and extracts relevant attributes (model, tokens, messages, etc.).
-    """
-
-    def __init__(self, span: Span, model: str | None = None) -> None:
-        """Initialize generation observation.
-
-        Args:
-            span: OpenTelemetry span
-            model: Model identifier (e.g., "gpt-4")
-        """
-        super().__init__(span)
-        self._model = model
-        if model:
-            self.set_attribute("gen_ai.request.model", model)
-
-    def update(self, provider_response: Any) -> None:
-        """Update with provider response using smart parsing.
-
-        Attempts to parse OpenAI and Anthropic response formats automatically.
-
-        Args:
-            provider_response: Response from LLM provider
-        """
-        from .parsers.registry import parse_provider_response
-
         try:
+            from .integrations._shared import parse_provider_response
+
             attributes = parse_provider_response(provider_response)
             for key, value in attributes.items():
                 self.set_attribute(key, value)
-            logger.debug("Successfully parsed provider response: %d attributes", len(attributes))
+
+            logger.debug(
+                "Successfully parsed provider response: %d attributes",
+                len(attributes),
+            )
         except Exception as e:
             logger.warning(
                 "Failed to parse provider response (type=%s): %s",
                 type(provider_response).__name__,
                 e,
-                exc_info=True,  # HIGH FIX: Add stack trace for debugging
+                exc_info=True,
             )
-            # HIGH FIX: Record parsing error on span for visibility
-            self.set_attribute("otel.parsing_error", str(e))
-            self.set_attribute("otel.parsing_error_type", type(provider_response).__name__)
-            self.record_exception(e)
+            self.set_attribute(Attr.Internal.PARSING_ERROR, str(e))
+            self.set_attribute(
+                Attr.Internal.PARSING_ERROR_TYPE,
+                type(provider_response).__name__,
+            )
 
+        return self
 
-class ToolObservation(Observation):
-    """Observation for tool/function call spans."""
-
-    def __init__(self, span: Span, tool_name: str | None = None) -> None:
-        """Initialize tool observation.
-
-        Args:
-            span: OpenTelemetry span
-            tool_name: Tool name
-        """
-        super().__init__(span)
-        if tool_name:
-            self.set_attribute("tool.name", tool_name)
-
-
-class AgentObservation(Observation):
-    """Observation for agent operation spans."""
-
-    def __init__(self, span: Span, agent_name: str | None = None) -> None:
-        """Initialize agent observation.
-
-        Args:
-            span: OpenTelemetry span
-            agent_name: Agent name
-        """
-        super().__init__(span)
-        if agent_name:
-            self.set_attribute("agent.name", agent_name)
-
-
-class RetrieverObservation(Observation):
-    """Observation for retrieval operation spans."""
-
-    def __init__(self, span: Span) -> None:
-        """Initialize retriever observation.
-
-        Args:
-            span: OpenTelemetry span
-        """
-        super().__init__(span)
-        self.set_attribute("span.type", "retriever")
-
-
-class EmbeddingObservation(Observation):
-    """Observation for embedding generation spans."""
-
-    def __init__(self, span: Span, model: str | None = None) -> None:
-        """Initialize embedding observation.
-
-        Args:
-            span: OpenTelemetry span
-            model: Embedding model name
-        """
-        super().__init__(span)
-        if model:
-            self.set_attribute("gen_ai.request.model", model)
-        self.set_attribute("span.type", "embedding")
-
-
-class WorkflowObservation(Observation):
-    """Observation for workflow spans."""
-
-    def __init__(self, span: Span) -> None:
-        """Initialize workflow observation.
-
-        Args:
-            span: OpenTelemetry span
-        """
-        super().__init__(span)
-        self.set_attribute("span.type", "workflow")
-
-
-class ActivityObservation(Observation):
-    """Observation for activity spans."""
-
-    def __init__(self, span: Span) -> None:
-        """Initialize activity observation.
-
-        Args:
-            span: OpenTelemetry span
-        """
-        super().__init__(span)
-        self.set_attribute("span.type", "activity")
