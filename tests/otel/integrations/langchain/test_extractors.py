@@ -162,7 +162,9 @@ class TestExtractLLMAttributes:
         run.extra = {"invocation_params": {"model_name": "gpt-4"}}
         run.inputs = {"messages": [{"role": "user", "content": "Hello"}]}
         run.outputs = {
-            "generations": [[{"text": "Hi there!", "message": {"content": "Hi there!"}}]]
+            "generations": [
+                [{"text": "Hi there!", "message": {"content": "Hi there!"}}]
+            ]
         }
 
         config = InstrumentationConfig()
@@ -201,7 +203,9 @@ class TestExtractLLMAttributes:
         """Test that max_array_items limits message extraction."""
         run = Mock()
         run.extra = {}
-        run.inputs = {"messages": [{"role": "user", "content": f"Message {i}"} for i in range(10)]}
+        run.inputs = {
+            "messages": [{"role": "user", "content": f"Message {i}"} for i in range(10)]
+        }
         run.outputs = None
 
         config = InstrumentationConfig(max_array_items=3)
@@ -221,7 +225,10 @@ class TestExtractChainAttributes:
     def test_extract_chain_input(self) -> None:
         """Test extraction of chain input (OpenInference input.value)."""
         run = Mock()
-        run.inputs = {"query": "What is the capital of France?", "context": ["doc1", "doc2"]}
+        run.inputs = {
+            "query": "What is the capital of France?",
+            "context": ["doc1", "doc2"],
+        }
 
         config = InstrumentationConfig()
         attributes = extract_chain_attributes(run, config)
@@ -344,7 +351,10 @@ class TestExtractRetrieverAttributes:
                     "metadata": {"source": "file1.txt"},
                     "score": 0.95,
                 },
-                {"page_content": "Document content 2", "metadata": {"source": "file2.txt"}},
+                {
+                    "page_content": "Document content 2",
+                    "metadata": {"source": "file2.txt"},
+                },
             ]
         }
 
@@ -372,9 +382,7 @@ class TestExtractRetrieverAttributes:
         """Test that max_array_items limits document extraction."""
         run = Mock()
         run.inputs = {"query": "test"}
-        run.outputs = {
-            "documents": [{"page_content": f"Doc {i}"} for i in range(10)]
-        }
+        run.outputs = {"documents": [{"page_content": f"Doc {i}"} for i in range(10)]}
 
         config = InstrumentationConfig(max_array_items=3)
         attributes = extract_retriever_attributes(run, config)

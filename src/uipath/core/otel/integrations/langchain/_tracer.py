@@ -41,12 +41,14 @@ class UiPathTracer(BaseTracer):
         >>> uipath_tracer = UiPathTracer(tracer, config)
     """
 
-    def __init__(self, tracer: Tracer, config: InstrumentationConfig | None = None) -> None:
+    def __init__(
+        self, tracer: Tracer, config: InstrumentationConfig | None = None
+    ) -> None:
         """Initialize UiPath tracer with OpenTelemetry tracer and config."""
         super().__init__()
         self._tracer = tracer
         self._config = config or InstrumentationConfig()
-        self._span_registry = TTLSpanRegistry(
+        self._span_registry: TTLSpanRegistry = TTLSpanRegistry(  # type: ignore[type-arg]
             ttl_seconds=self._config.ttl_seconds,
             max_size=self._config.max_registry_size,
         )

@@ -183,7 +183,9 @@ def extract_tool_attributes(run: Run, config: InstrumentationConfig) -> dict[str
     return attributes
 
 
-def extract_retriever_attributes(run: Run, config: InstrumentationConfig) -> dict[str, Any]:
+def extract_retriever_attributes(
+    run: Run, config: InstrumentationConfig
+) -> dict[str, Any]:
     """Extract retriever-specific attributes from Run object.
 
     Args:
@@ -363,7 +365,9 @@ def _extract_output_generations(
             attributes[content_key] = content_str
 
 
-def _extract_token_counts(llm_output: dict[str, Any], attributes: dict[str, Any]) -> None:
+def _extract_token_counts(
+    llm_output: dict[str, Any], attributes: dict[str, Any]
+) -> None:
     """Extract token count attributes from LLM output.
 
     Args:

@@ -38,7 +38,9 @@ class LangGraphAugmentation:
         >>> augmentation.capture_graph_topology(app, "my-graph")
     """
 
-    def __init__(self, tracer: Tracer, config: InstrumentationConfig | None = None) -> None:
+    def __init__(
+        self, tracer: Tracer, config: InstrumentationConfig | None = None
+    ) -> None:
         """Initialize augmentation with tracer and config."""
         self._tracer = tracer
         self._config = config or InstrumentationConfig()
@@ -77,7 +79,8 @@ class LangGraphAugmentation:
                 # Edges
                 if hasattr(graph, "edges"):
                     edges = [
-                        {"from": str(edge[0]), "to": str(edge[1])} for edge in graph.edges
+                        {"from": str(edge[0]), "to": str(edge[1])}
+                        for edge in graph.edges
                     ]
                     span.set_attribute(
                         Attr.Graph.EDGES,
@@ -86,9 +89,7 @@ class LangGraphAugmentation:
 
                 # Entry point
                 if hasattr(graph, "entry_point"):
-                    span.set_attribute(
-                        Attr.Graph.ENTRY_POINT, str(graph.entry_point)
-                    )
+                    span.set_attribute(Attr.Graph.ENTRY_POINT, str(graph.entry_point))
 
                 # Conditional edges
                 if hasattr(graph, "conditional_edges"):
@@ -198,13 +199,9 @@ class LangGraphAugmentation:
             if messages_added > 0:
                 span.set_attribute(Attr.State.MESSAGES_ADDED, messages_added)
             elif messages_added < 0:
-                span.set_attribute(
-                    Attr.State.MESSAGES_REMOVED, abs(messages_added)
-                )
+                span.set_attribute(Attr.State.MESSAGES_REMOVED, abs(messages_added))
 
-            span.set_attribute(
-                Attr.State.MESSAGES_TOTAL, len(after_messages)
-            )
+            span.set_attribute(Attr.State.MESSAGES_TOTAL, len(after_messages))
 
             # Iteration delta
             before_iteration = before_state.get("iteration", 0)

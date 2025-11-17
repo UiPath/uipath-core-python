@@ -467,4 +467,6 @@ async def test_decorator_async_exception(
     exception_events = [e for e in func_span.events if e.name == "exception"]
     assert len(exception_events) >= 1
     # Verify the first exception is the RuntimeError we raised
-    assert "RuntimeError" in str(exception_events[0].attributes.get("exception.type", ""))
+    assert "RuntimeError" in str(
+        exception_events[0].attributes.get("exception.type", "")
+    )

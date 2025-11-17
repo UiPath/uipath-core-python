@@ -5,10 +5,13 @@ from __future__ import annotations
 import time
 from collections import OrderedDict
 from threading import Lock
-from typing import Any
+from typing import Generic, Hashable, TypeVar
+
+K = TypeVar("K", bound=Hashable)
+V = TypeVar("V")
 
 
-class TTLSpanRegistry:
+class TTLSpanRegistry(Generic[K, V]):
     """Registry for tracking spans with automatic expiration.
 
     Prevents memory leaks by automatically removing old entries after TTL expires.
@@ -30,11 +33,11 @@ class TTLSpanRegistry:
         """Initialize registry with TTL and size limits."""
         self._ttl_seconds = ttl_seconds
         self._max_size = max_size
-        self._registry: OrderedDict[str, tuple[Any, float]] = OrderedDict()
+        self._registry: OrderedDict[K, tuple[V, float]] = OrderedDict()
         self._lock = Lock()
         self._register_count = 0
 
-    def register(self, span_id: str, span: Any) -> None:
+    def register(self, span_id: K, span: V) -> None:
         """Register span with current timestamp.
 
         Args:
@@ -50,7 +53,7 @@ class TTLSpanRegistry:
             if len(self._registry) > self._max_size or self._register_count % 1000 == 0:
                 self._cleanup_unlocked()
 
-    def get(self, span_id: str) -> Any | None:
+    def get(self, span_id: K) -> V | None:
         """Get span by ID if not expired.
 
         Args:
@@ -97,6 +100,49 @@ class TTLSpanRegistry:
             del self._registry[key]
 
         return len(expired_keys)
+
+    def pop(self, span_id: K, default: V | None = None) -> V | None:
+        """Remove and return span by ID.
+
+        Args:
+            span_id: Unique identifier for span
+            default: Default value if span_id not found
+
+        Returns:
+            Span object if found, default otherwise
+        """
+        with self._lock:
+            entry = self._registry.pop(span_id, None)
+            if entry is None:
+                return default
+            span, _ = entry
+            return span
+
+    def __setitem__(self, span_id: K, span: V) -> None:
+        """Set span by ID (dict-like interface).
+
+        Args:
+            span_id: Unique identifier for span
+            span: Span object to register
+        """
+        self.register(span_id, span)
+
+    def __getitem__(self, span_id: K) -> V:
+        """Get span by ID (dict-like interface).
+
+        Args:
+            span_id: Unique identifier for span
+
+        Returns:
+            Span object if found and not expired
+
+        Raises:
+            KeyError: If span_id not found or expired
+        """
+        result = self.get(span_id)
+        if result is None:
+            raise KeyError(span_id)
+        return result
 
     def clear(self) -> None:
         """Remove all entries from registry."""

@@ -68,13 +68,16 @@ class TestLangGraphInstrumentationIntegration:
         assert instrumentor is not None
 
     def test_instrumentor_composition(self) -> None:
-        """Test that LangGraph instrumentor composes LangChain instrumentor."""
+        """Test that LangGraph instrumentor has necessary internal state."""
         from uipath.core.otel.integrations.langgraph import LangGraphInstrumentor
 
         instrumentor = LangGraphInstrumentor()
-        # Verify composition happens during instrument (can't test without dependencies)
-        assert instrumentor._langchain_instrumentor is None  # Not yet initialized
-        assert instrumentor._augmentation is None
+        # Verify instrumentor is properly initialized
+        # Note: The new instrumentor uses callback-based approach,
+        # not composition, so we just verify it can be created
+        assert instrumentor is not None
+        assert hasattr(instrumentor, "_instrument")
+        assert hasattr(instrumentor, "_uninstrument")
 
     def test_instrumentation_dependencies(self) -> None:
         """Test that LangGraph instrumentor declares correct dependencies."""
@@ -83,8 +86,7 @@ class TestLangGraphInstrumentationIntegration:
         instrumentor = LangGraphInstrumentor()
         dependencies = instrumentor.instrumentation_dependencies()
 
-        assert "langgraph >= 0.2.0" in dependencies
-        assert "langchain_core >= 0.3.9" in dependencies
+        assert "langgraph >= 1.0.0" in dependencies
 
 
 class TestModuleImports:

@@ -52,4 +52,4 @@ __all__ = [
 ]
 
 from ._augmentation import LangGraphAugmentation
-from ._instrumentor import LangGraphInstrumentor
+from .instrumentor import LangGraphInstrumentor

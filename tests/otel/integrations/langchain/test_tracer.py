@@ -141,4 +141,6 @@ class TestUiPathTracer:
 
         for run_type, expected_kind in test_cases:
             kind = self.uipath_tracer._get_openinference_kind(Mock(run_type=run_type))
-            assert kind == expected_kind, f"Run type {run_type} should map to {expected_kind}"
+            assert kind == expected_kind, (
+                f"Run type {run_type} should map to {expected_kind}"
+            )

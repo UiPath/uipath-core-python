@@ -62,7 +62,9 @@ def parse_openai_response(response: Any) -> dict[str, Any]:
                         }
                         for tc in message.tool_calls
                     ]
-                    attributes["gen_ai.response.tool_calls"] = json.dumps(tool_call_data)
+                    attributes["gen_ai.response.tool_calls"] = json.dumps(
+                        tool_call_data
+                    )
 
         # Usage/tokens
         if hasattr(response, "usage"):

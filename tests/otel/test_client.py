@@ -197,7 +197,9 @@ def test_config_valid_service_names() -> None:
     assert config1.service_name == "a"
 
     # With hyphens
-    config2 = TelemetryConfig(enable_console_export=True, service_name="my-service-name")
+    config2 = TelemetryConfig(
+        enable_console_export=True, service_name="my-service-name"
+    )
     assert config2.service_name == "my-service-name"
 
     # With numbers
@@ -259,8 +261,6 @@ def test_resource_attributes() -> None:
     # Note: We can't easily access resource attrs from client,
     # but we can verify initialization succeeded
     assert client._tracer is not None
-
-
 
 
 def test_config_console_export_via_otel_var(monkeypatch: pytest.MonkeyPatch) -> None:

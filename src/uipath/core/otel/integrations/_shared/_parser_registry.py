@@ -65,8 +65,7 @@ def parse_provider_response(response: Any) -> dict[str, Any]:
 
     # No parser found
     raise ValueError(
-        f"No parser registered for type: {type_name} "
-        f"(simple name: {simple_name})"
+        f"No parser registered for type: {type_name} (simple name: {simple_name})"
     )
 
 

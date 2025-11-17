@@ -138,7 +138,10 @@ class TestLangGraphLive:
             workflow = StateGraph(AgentState)
 
             def process_node(state: AgentState) -> AgentState:
-                return {"message": state["message"].upper(), "count": state["count"] + 1}
+                return {
+                    "message": state["message"].upper(),
+                    "count": state["count"] + 1,
+                }
 
             workflow.add_node("process", process_node)
             workflow.set_entry_point("process")
@@ -158,9 +161,10 @@ class TestLangGraphLive:
             spans = self.exporter.get_finished_spans()
             assert len(spans) > 0
 
-            # Check for graph topology span
+            # Check for LangGraph execution spans
             span_names = [span.name for span in spans]
-            assert any("graph.topology" in name for name in span_names)
+            # New instrumentor creates spans like "langgraph.invoke", "langgraph.LangGraph", "langgraph.process"
+            assert any("langgraph." in name for name in span_names)
 
         finally:
             instrumentor.uninstrument()

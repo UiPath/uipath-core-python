@@ -71,7 +71,8 @@ class ObservationSpan:
             exc_val: Exception value if raised
             exc_tb: Exception traceback if raised
         """
-        context_api.detach(self._context_token)
+        if self._context_token is not None:
+            context_api.detach(self._context_token)  # type: ignore[arg-type]
         self._context_token = None
 
         if exc_val:
@@ -192,6 +193,15 @@ class ObservationSpan:
         self._span.set_status(Status(status, description))
         return self
 
+    def set_status_ok(self) -> ObservationSpan:
+        """Set span status to OK (successful completion).
+
+        Returns:
+            Self for method chaining
+        """
+        self._span.set_status(Status(StatusCode.OK))
+        return self
+
     def update(self, provider_response: Any) -> ObservationSpan:
         """Update observation with provider response (parser-based extraction).
 
@@ -215,7 +225,9 @@ class ObservationSpan:
             obs.update(response)  # Extracts model, tokens, etc.
         """
         try:
-            from .integrations._shared import parse_provider_response
+            from .integrations._shared._parser_registry import (
+                parse_provider_response,
+            )
 
             attributes = parse_provider_response(provider_response)
             for key, value in attributes.items():
@@ -239,4 +251,3 @@ class ObservationSpan:
             )
 
         return self
-

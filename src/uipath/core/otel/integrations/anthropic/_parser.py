@@ -39,7 +39,9 @@ def parse_anthropic_response(response: Any) -> dict[str, Any]:
 
         # Stop reason (finish reason)
         if hasattr(response, "stop_reason") and response.stop_reason:
-            attributes["gen_ai.response.finish_reasons"] = json.dumps([response.stop_reason])
+            attributes["gen_ai.response.finish_reasons"] = json.dumps(
+                [response.stop_reason]
+            )
 
         # Content
         if hasattr(response, "content") and response.content:
@@ -61,7 +63,10 @@ def parse_anthropic_response(response: Any) -> dict[str, Any]:
             if hasattr(usage, "output_tokens"):
                 attributes["gen_ai.usage.output_tokens"] = usage.output_tokens
             # Calculate total
-            if "gen_ai.usage.input_tokens" in attributes and "gen_ai.usage.output_tokens" in attributes:
+            if (
+                "gen_ai.usage.input_tokens" in attributes
+                and "gen_ai.usage.output_tokens" in attributes
+            ):
                 attributes["gen_ai.usage.total_tokens"] = (
                     attributes["gen_ai.usage.input_tokens"]
                     + attributes["gen_ai.usage.output_tokens"]

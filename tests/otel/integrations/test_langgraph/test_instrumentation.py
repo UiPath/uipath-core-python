@@ -28,8 +28,10 @@ from uipath.core.otel.integrations.langgraph import LangGraphInstrumentor
 # State Definitions (must be module-level for LangGraph type introspection)
 # ============================================================================
 
+
 class AgentState(TypedDict):
     """State for agent workflow."""
+
     messages: Annotated[list, add_messages]
     iteration: int
 
@@ -37,6 +39,7 @@ class AgentState(TypedDict):
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def tracer_provider_and_exporter():
@@ -52,10 +55,12 @@ def tracer_provider_and_exporter():
     exporter = InMemorySpanExporter()
 
     # Create TracerProvider
-    resource = Resource.create({
-        "service.name": "test-langgraph",
-        "telemetry.sdk.name": "uipath-otel",
-    })
+    resource = Resource.create(
+        {
+            "service.name": "test-langgraph",
+            "telemetry.sdk.name": "uipath-otel",
+        }
+    )
     provider = TracerProvider(resource=resource)
 
     # Add SimpleSpanProcessor with InMemorySpanExporter
@@ -125,18 +130,19 @@ def simple_workflow():
     Workflow: agent -> (continue: tools | end: END) -> agent
     Iterations: 3 (agent, tools, agent, tools, agent, end)
     """
+
     def agent_node(state: AgentState) -> AgentState:
         """Simulate agent node."""
         return {
             "messages": [f"Agent thought: iteration {state['iteration']}"],
-            "iteration": state["iteration"] + 1
+            "iteration": state["iteration"] + 1,
         }
 
     def tool_node(state: AgentState) -> AgentState:
         """Simulate tool node."""
         return {
             "messages": [f"Tool executed at iteration {state['iteration']}"],
-            "iteration": state["iteration"] + 1
+            "iteration": state["iteration"] + 1,
         }
 
     def should_continue(state: AgentState) -> str:
@@ -151,9 +157,7 @@ def simple_workflow():
     workflow.add_node("tools", tool_node)
     workflow.set_entry_point("agent")
     workflow.add_conditional_edges(
-        "agent",
-        should_continue,
-        {"continue": "tools", "end": END}
+        "agent", should_continue, {"continue": "tools", "end": END}
     )
     workflow.add_edge("tools", "agent")
 
@@ -163,6 +167,7 @@ def simple_workflow():
 # ============================================================================
 # Test Case 1: Basic Sync Execution
 # ============================================================================
+
 
 @pytest.mark.no_auto_tracer
 def test_basic_sync_execution(instrumentor, simple_workflow, exporter, otel_client):
@@ -175,15 +180,13 @@ def test_basic_sync_execution(instrumentor, simple_workflow, exporter, otel_clie
     - Span attributes set correctly
     """
     # Execute workflow
-    initial_state = {
-        "messages": ["Start workflow"],
-        "iteration": 0
-    }
+    initial_state = {"messages": ["Start workflow"], "iteration": 0}
 
     result = simple_workflow.invoke(initial_state)
 
     # Force flush all span processors
     from opentelemetry import trace
+
     provider = trace.get_tracer_provider()
     provider.force_flush()
 
@@ -193,15 +196,29 @@ def test_basic_sync_execution(instrumentor, simple_workflow, exporter, otel_clie
     # Assertions: Basic span creation
     assert len(spans) > 0, f"No spans captured (exporter type: {type(exporter)})"
 
-    # Current implementation creates:
-    # - graph.topology.{name} span during compilation
-    # - LangGraph span(s) from LangChain callback during execution
-    topology_spans = [s for s in spans if s.name.startswith("graph.topology.")]
-    execution_spans = [s for s in spans if s.name == "LangGraph"]
+    # New implementation creates:
+    # - langgraph.invoke (root span for sync execution)
+    # - langgraph.LangGraph (workflow wrapper span)
+    # - langgraph.{node_name} (node execution spans)
+    invoke_spans = [s for s in spans if s.name == "langgraph.invoke"]
+    workflow_spans = [s for s in spans if s.name == "langgraph.LangGraph"]
+    node_spans = [
+        s
+        for s in spans
+        if s.name.startswith("langgraph.")
+        and s.name not in ["langgraph.invoke", "langgraph.LangGraph"]
+    ]
 
-    # Verify we captured both topology and execution spans
-    assert len(topology_spans) >= 1, "Expected topology span from compilation"
-    assert len(execution_spans) >= 1, "Expected execution span from invoke"
+    # Verify we captured the expected spans
+    assert len(invoke_spans) >= 1, (
+        f"Expected langgraph.invoke span, got spans: {[s.name for s in spans]}"
+    )
+    assert len(workflow_spans) >= 1, (
+        f"Expected langgraph.LangGraph span, got spans: {[s.name for s in spans]}"
+    )
+    assert len(node_spans) >= 1, (
+        f"Expected node spans (langgraph.{{node}}), got spans: {[s.name for s in spans]}"
+    )
 
     # Verify result
     assert result["iteration"] >= 3, "Workflow didn't complete all iterations"
@@ -210,6 +227,7 @@ def test_basic_sync_execution(instrumentor, simple_workflow, exporter, otel_clie
 # ============================================================================
 # Test Case 2: Async Execution
 # ============================================================================
+
 
 @pytest.mark.no_auto_tracer
 @pytest.mark.asyncio
@@ -222,15 +240,13 @@ async def test_async_execution(instrumentor, simple_workflow, exporter, otel_cli
     - Same span hierarchy as sync
     """
     # Execute workflow asynchronously
-    initial_state = {
-        "messages": ["Start async workflow"],
-        "iteration": 0
-    }
+    initial_state = {"messages": ["Start async workflow"], "iteration": 0}
 
     result = await simple_workflow.ainvoke(initial_state)
 
     # Force flush all span processors (align with sync test)
     from opentelemetry import trace
+
     provider = trace.get_tracer_provider()
     provider.force_flush()
 
@@ -238,9 +254,29 @@ async def test_async_execution(instrumentor, simple_workflow, exporter, otel_cli
     spans = exporter.get_finished_spans()
     assert len(spans) > 0, "No spans captured for async execution"
 
-    # Verify execution spans (from LangChain callbacks)
-    execution_spans = [s for s in spans if s.name == "LangGraph"]
-    assert len(execution_spans) >= 1, "Expected execution span from ainvoke"
+    # Verify execution spans (from instrumentation)
+    # New implementation creates:
+    # - langgraph.ainvoke (root span for async execution)
+    # - langgraph.LangGraph (workflow wrapper span)
+    # - langgraph.{node_name} (node execution spans)
+    ainvoke_spans = [s for s in spans if s.name == "langgraph.ainvoke"]
+    workflow_spans = [s for s in spans if s.name == "langgraph.LangGraph"]
+    node_spans = [
+        s
+        for s in spans
+        if s.name.startswith("langgraph.")
+        and s.name not in ["langgraph.ainvoke", "langgraph.LangGraph"]
+    ]
+
+    assert len(ainvoke_spans) >= 1, (
+        f"Expected langgraph.ainvoke span, got spans: {[s.name for s in spans]}"
+    )
+    assert len(workflow_spans) >= 1, (
+        f"Expected langgraph.LangGraph span, got spans: {[s.name for s in spans]}"
+    )
+    assert len(node_spans) >= 1, (
+        f"Expected node spans (langgraph.{{node}}), got spans: {[s.name for s in spans]}"
+    )
 
     # Verify result
     assert result["iteration"] >= 3, "Workflow didn't complete all iterations"
@@ -249,6 +285,7 @@ async def test_async_execution(instrumentor, simple_workflow, exporter, otel_cli
 # ============================================================================
 # Test Case 3: Error Handling
 # ============================================================================
+
 
 @pytest.mark.no_auto_tracer
 def test_error_handling(instrumentor, exporter, otel_client):
@@ -260,8 +297,10 @@ def test_error_handling(instrumentor, exporter, otel_client):
     - Parent span completes gracefully
     - Other spans before error are captured
     """
+
     class ErrorState(TypedDict):
         """State for error test."""
+
         iteration: int
 
     def normal_node(state: ErrorState) -> ErrorState:
@@ -310,6 +349,7 @@ def test_error_handling(instrumentor, exporter, otel_client):
 # Test Case 4: State Truncation
 # ============================================================================
 
+
 @pytest.mark.no_auto_tracer
 def test_large_state_truncation(instrumentor, exporter, otel_client):
     """Test state truncation when state exceeds size limit.
@@ -319,8 +359,10 @@ def test_large_state_truncation(instrumentor, exporter, otel_client):
     - Truncation marker present
     - Span still created successfully
     """
+
     class LargeState(TypedDict):
         """State with large data."""
+
         data: str
 
     def large_data_node(state: LargeState) -> LargeState:
@@ -352,6 +394,7 @@ def test_large_state_truncation(instrumentor, exporter, otel_client):
 # Test Case 5: Re-instrumentation Guard
 # ============================================================================
 
+
 @pytest.mark.no_auto_tracer
 def test_reinstrumentation_guard(otel_client):
     """Test that calling instrument() twice doesn't break.
@@ -376,6 +419,7 @@ def test_reinstrumentation_guard(otel_client):
 # ============================================================================
 # Test Case 6: Callback Preservation
 # ============================================================================
+
 
 @pytest.mark.no_auto_tracer
 def test_callback_preservation(instrumentor, simple_workflow, exporter, otel_client):
@@ -406,12 +450,12 @@ def test_callback_preservation(instrumentor, simple_workflow, exporter, otel_cli
 
     # Execute with user callback
     result = simple_workflow.invoke(
-        {"messages": ["Test"], "iteration": 0},
-        config={"callbacks": [UserCallback()]}
+        {"messages": ["Test"], "iteration": 0}, config={"callbacks": [UserCallback()]}
     )
 
     # Force flush all span processors
     from opentelemetry import trace
+
     provider = trace.get_tracer_provider()
     provider.force_flush()
 
@@ -433,6 +477,7 @@ def test_callback_preservation(instrumentor, simple_workflow, exporter, otel_cli
 # Test Case 7: Uninstrumentation
 # ============================================================================
 
+
 @pytest.mark.no_auto_tracer
 def test_uninstrumentation(otel_client, exporter):
     """Test that uninstrument() properly restores original behavior.
@@ -441,9 +486,11 @@ def test_uninstrumentation(otel_client, exporter):
     - After uninstrument(), workflow still executes correctly
     - After uninstrument(), new compiled apps don't capture spans
     """
+
     # Create simple workflow
     class State(TypedDict):
         """Simple state."""
+
         value: int
 
     def increment(state: State) -> State:
@@ -465,6 +512,7 @@ def test_uninstrumentation(otel_client, exporter):
     # Execute instrumented app (should capture spans)
     result1 = app_instrumented.invoke({"value": 0})
     from opentelemetry import trace
+
     provider = trace.get_tracer_provider()
     provider.force_flush()
 
@@ -498,5 +546,6 @@ def test_uninstrumentation(otel_client, exporter):
     # This means topology spans will still be created during compilation.
     # We verify that uninstrumentation at least removed LangChain callback tracing
     # by checking that fewer spans are created (topology only, no execution spans)
-    assert spans_uninstrumented <= spans_instrumented, \
+    assert spans_uninstrumented <= spans_instrumented, (
         "Uninstrumentation should reduce or maintain span count"
+    )

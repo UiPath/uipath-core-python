@@ -95,13 +95,15 @@ class Trace:
             exc_val: Exception value if raised
             exc_tb: Exception traceback if raised
         """
-        context_api.detach(self._context_token)
+        if self._context_token is not None:
+            context_api.detach(self._context_token)  # type: ignore[arg-type]
         self._context_token = None
 
-        if exc_val:
-            self._root_span.record_exception(exc_val)
-            self._root_span.set_status(trace.Status(trace.StatusCode.ERROR))
-        self._root_span.end()
+        if self._root_span is not None:
+            if exc_val:
+                self._root_span.record_exception(exc_val)
+                self._root_span.set_status(trace.Status(trace.StatusCode.ERROR))
+            self._root_span.end()
         logger.debug("Trace ended: %s", self._name)
 
     def span(

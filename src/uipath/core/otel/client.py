@@ -23,7 +23,7 @@ from opentelemetry.sdk.trace.export import (
 from .config import TelemetryConfig
 
 try:
-    from . import __version__
+    from . import __version__  # type: ignore[attr-defined]
 except ImportError:
     __version__ = "1.0.0"
 
@@ -96,7 +96,7 @@ class TelemetryClient:
                 self._config.enable_console_export,
             )
 
-        self._tracer = self._provider.get_tracer(
+        self._tracer = self._provider.get_tracer(  # type: ignore[assignment]
             instrumenting_module_name=DEFAULT_INSTRUMENTING_MODULE_NAME,
             instrumenting_library_version=__version__,
         )
@@ -170,9 +170,7 @@ class TelemetryClient:
             return True
 
         logger.debug("Flushing OTel spans (timeout=%.1fs)", timeout_seconds)
-        result = self._provider.force_flush(
-            timeout_millis=int(timeout_seconds * 1000)
-        )
+        result = self._provider.force_flush(timeout_millis=int(timeout_seconds * 1000))
         return result
 
 

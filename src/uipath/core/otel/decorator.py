@@ -12,7 +12,7 @@ from opentelemetry.trace import SpanKind
 from .observation import ObservationSpan
 
 if TYPE_CHECKING:
-    from .attributes import OpenInferenceSpanKindValues
+    from .attributes import OpenInferenceSpanKindValues  # type: ignore[attr-defined]
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +90,7 @@ def traced(
 
                         output_data = _process_output(result, output_processor)
                         obs.record_output(output_data, hide=hide_output)
+                        obs.set_status_ok()
 
                         return result
 
@@ -126,7 +127,7 @@ def traced(
                         )
                         obs.record_input(input_data, hide=hide_input)
 
-                        output_buffer = []
+                        output_buffer: list[Any] = []
                         MAX_OUTPUT_ITEMS = 10000
 
                         for item in func(*args, **kwargs):
@@ -139,6 +140,8 @@ def traced(
                                 output_buffer, output_processor
                             )
                             obs.record_output(output_data, hide=hide_output)
+
+                        obs.set_status_ok()
 
                     except Exception as e:
                         obs.record_exception(e)
@@ -176,6 +179,7 @@ def traced(
 
                         output_data = _process_output(result, output_processor)
                         obs.record_output(output_data, hide=hide_output)
+                        obs.set_status_ok()
 
                         return result
 

@@ -122,8 +122,14 @@ def _compare_attributes(
         return {"error": "No spans to compare"}
 
     # Compare attributes on first span (as sample)
-    uipath_attrs = set(uipath_spans[0].attributes.keys()) if uipath_spans[0].attributes else set()
-    openinf_attrs = set(openinference_spans[0].attributes.keys()) if openinference_spans[0].attributes else set()
+    uipath_attrs = (
+        set(uipath_spans[0].attributes.keys()) if uipath_spans[0].attributes else set()
+    )
+    openinf_attrs = (
+        set(openinference_spans[0].attributes.keys())
+        if openinference_spans[0].attributes
+        else set()
+    )
 
     return {
         "shared_attributes": sorted(uipath_attrs & openinf_attrs),
@@ -184,7 +190,9 @@ class TestOpenInferenceCompatibility:
         # ===== Run with OpenInference instrumentation =====
         openinference_instrumentor = OpenInferenceLangChainInstrumentor()
         try:
-            openinference_instrumentor.instrument(tracer_provider=self.openinference_provider)
+            openinference_instrumentor.instrument(
+                tracer_provider=self.openinference_provider
+            )
             chain = RunnableLambda(uppercase)
             openinference_result = chain.invoke(test_input)
             self.openinference_provider.force_flush()
@@ -199,7 +207,9 @@ class TestOpenInferenceCompatibility:
 
         # Both should produce spans
         assert len(uipath_spans) > 0, "UiPath instrumentation produced no spans"
-        assert len(openinference_spans) > 0, "OpenInference instrumentation produced no spans"
+        assert len(openinference_spans) > 0, (
+            "OpenInference instrumentation produced no spans"
+        )
 
         # Compare span structures
         comparison = compare_span_structures(uipath_spans, openinference_spans)
@@ -209,12 +219,20 @@ class TestOpenInferenceCompatibility:
         print(f"UiPath spans: {comparison['uipath_span_count']}")
         print(f"OpenInference spans: {comparison['openinference_span_count']}")
         print(f"\nSpan names (UiPath): {comparison['span_names']['uipath']}")
-        print(f"Span names (OpenInference): {comparison['span_names']['openinference']}")
+        print(
+            f"Span names (OpenInference): {comparison['span_names']['openinference']}"
+        )
 
         if comparison["common_attributes"]:
-            print(f"\nShared attributes: {comparison['common_attributes']['shared_attributes']}")
-            print(f"UiPath-only attributes: {comparison['common_attributes']['uipath_only']}")
-            print(f"OpenInference-only: {comparison['common_attributes']['openinference_only']}")
+            print(
+                f"\nShared attributes: {comparison['common_attributes']['shared_attributes']}"
+            )
+            print(
+                f"UiPath-only attributes: {comparison['common_attributes']['uipath_only']}"
+            )
+            print(
+                f"OpenInference-only: {comparison['common_attributes']['openinference_only']}"
+            )
 
         if comparison["differences"]:
             print("\n=== Differences ===")
@@ -253,7 +271,9 @@ class TestOpenInferenceCompatibility:
         # ===== Run with OpenInference instrumentation =====
         openinference_instrumentor = OpenInferenceLangChainInstrumentor()
         try:
-            openinference_instrumentor.instrument(tracer_provider=self.openinference_provider)
+            openinference_instrumentor.instrument(
+                tracer_provider=self.openinference_provider
+            )
             chain = RunnableLambda(echo_message)
             openinference_result = chain.invoke(test_message)
             self.openinference_provider.force_flush()
@@ -371,20 +391,23 @@ class TestSemanticConventions:
         # Check for expected OpenInference semantic convention patterns
         # These are the prefixes used by OpenInference
         expected_prefixes = [
-            "llm.",          # LLM-related attributes
-            "input.",        # Input attributes
-            "output.",       # Output attributes
-            "openinference.", # OpenInference-specific
+            "llm.",  # LLM-related attributes
+            "input.",  # Input attributes
+            "output.",  # Output attributes
+            "openinference.",  # OpenInference-specific
         ]
 
         # At least some attributes should follow the conventions
         # (Note: Not all spans will have all prefixes)
         convention_attrs = [
-            attr for attr in all_attrs
+            attr
+            for attr in all_attrs
             if any(attr.startswith(prefix) for prefix in expected_prefixes)
         ]
 
-        print(f"\nAttributes following OpenInference conventions: {sorted(convention_attrs)}")
+        print(
+            f"\nAttributes following OpenInference conventions: {sorted(convention_attrs)}"
+        )
 
         # We should have at least some conforming attributes
         # (This is a soft assertion - actual attribute presence depends on run type)
@@ -450,7 +473,9 @@ class TestOpenInferenceScenarios:
         # Run with OpenInference instrumentation
         openinference_instrumentor = OpenInferenceLangChainInstrumentor()
         try:
-            openinference_instrumentor.instrument(tracer_provider=self.openinference_provider)
+            openinference_instrumentor.instrument(
+                tracer_provider=self.openinference_provider
+            )
             chain = RunnableLambda(outer_chain)
             openinference_result = chain.invoke(test_input)
             self.openinference_provider.force_flush()
@@ -464,18 +489,28 @@ class TestOpenInferenceScenarios:
 
         # Verify both captured nested structure
         assert len(uipath_spans) > 1, "UiPath should capture nested chains"
-        assert len(openinference_spans) > 1, "OpenInference should capture nested chains"
+        assert len(openinference_spans) > 1, (
+            "OpenInference should capture nested chains"
+        )
 
         # Verify hierarchy structure matches
         uipath_hierarchy = _extract_hierarchy(uipath_spans)
         openinference_hierarchy = _extract_hierarchy(openinference_spans)
 
         # Both should have parent-child relationships
-        uipath_has_children = any(parent is not None for parent in uipath_hierarchy.values())
-        openinf_has_children = any(parent is not None for parent in openinference_hierarchy.values())
+        uipath_has_children = any(
+            parent is not None for parent in uipath_hierarchy.values()
+        )
+        openinf_has_children = any(
+            parent is not None for parent in openinference_hierarchy.values()
+        )
 
-        assert uipath_has_children, "UiPath spans should have parent-child relationships"
-        assert openinf_has_children, "OpenInference spans should have parent-child relationships"
+        assert uipath_has_children, (
+            "UiPath spans should have parent-child relationships"
+        )
+        assert openinf_has_children, (
+            "OpenInference spans should have parent-child relationships"
+        )
 
     def test_error_handling_scenario(self) -> None:
         """Test error handling produces compatible error attributes."""
@@ -503,7 +538,9 @@ class TestOpenInferenceScenarios:
         # Run with OpenInference instrumentation
         openinference_instrumentor = OpenInferenceLangChainInstrumentor()
         try:
-            openinference_instrumentor.instrument(tracer_provider=self.openinference_provider)
+            openinference_instrumentor.instrument(
+                tracer_provider=self.openinference_provider
+            )
             chain = RunnableLambda(failing_chain)
             with pytest.raises(ValueError):
                 chain.invoke(test_input)
@@ -520,11 +557,17 @@ class TestOpenInferenceScenarios:
         # Verify error status
         from opentelemetry.trace import StatusCode
 
-        uipath_error_spans = [s for s in uipath_spans if s.status.status_code == StatusCode.ERROR]
-        openinf_error_spans = [s for s in openinference_spans if s.status.status_code == StatusCode.ERROR]
+        uipath_error_spans = [
+            s for s in uipath_spans if s.status.status_code == StatusCode.ERROR
+        ]
+        openinf_error_spans = [
+            s for s in openinference_spans if s.status.status_code == StatusCode.ERROR
+        ]
 
         assert len(uipath_error_spans) > 0, "UiPath should mark spans with error status"
-        assert len(openinf_error_spans) > 0, "OpenInference should mark spans with error status"
+        assert len(openinf_error_spans) > 0, (
+            "OpenInference should mark spans with error status"
+        )
 
         # Verify both recorded exceptions
         uipath_has_exception = any(len(s.events) > 0 for s in uipath_spans)
@@ -561,7 +604,9 @@ class TestOpenInferenceScenarios:
         # Run with OpenInference instrumentation
         openinference_instrumentor = OpenInferenceLangChainInstrumentor()
         try:
-            openinference_instrumentor.instrument(tracer_provider=self.openinference_provider)
+            openinference_instrumentor.instrument(
+                tracer_provider=self.openinference_provider
+            )
             chain = RunnableLambda(async_chain)
             openinference_result = asyncio.run(chain.ainvoke(test_input))
             self.openinference_provider.force_flush()
@@ -607,7 +652,9 @@ class TestOpenInferenceScenarios:
         # Run with OpenInference instrumentation
         openinference_instrumentor = OpenInferenceLangChainInstrumentor()
         try:
-            openinference_instrumentor.instrument(tracer_provider=self.openinference_provider)
+            openinference_instrumentor.instrument(
+                tracer_provider=self.openinference_provider
+            )
             chain = RunnableLambda(batch_chain)
             openinference_result = chain.batch(test_inputs)
             self.openinference_provider.force_flush()
@@ -624,8 +671,12 @@ class TestOpenInferenceScenarios:
         assert len(openinference_spans) > 0, "OpenInference should capture batch spans"
 
         # Both should capture multiple invocations
-        assert len(uipath_spans) >= len(test_inputs), "UiPath should have spans for each batch item"
-        assert len(openinference_spans) >= len(test_inputs), "OpenInference should have spans for each batch item"
+        assert len(uipath_spans) >= len(test_inputs), (
+            "UiPath should have spans for each batch item"
+        )
+        assert len(openinference_spans) >= len(test_inputs), (
+            "OpenInference should have spans for each batch item"
+        )
 
     def test_sequential_chain_scenario(self) -> None:
         """Test sequential chain execution produces compatible span structure."""
@@ -655,7 +706,9 @@ class TestOpenInferenceScenarios:
         # Run with OpenInference instrumentation
         openinference_instrumentor = OpenInferenceLangChainInstrumentor()
         try:
-            openinference_instrumentor.instrument(tracer_provider=self.openinference_provider)
+            openinference_instrumentor.instrument(
+                tracer_provider=self.openinference_provider
+            )
             chain = RunnableLambda(step1) | RunnableLambda(step2)
             openinference_result = chain.invoke(test_input)
             self.openinference_provider.force_flush()
@@ -669,7 +722,9 @@ class TestOpenInferenceScenarios:
 
         # Verify both captured sequential execution
         assert len(uipath_spans) > 1, "UiPath should capture multiple steps"
-        assert len(openinference_spans) > 1, "OpenInference should capture multiple steps"
+        assert len(openinference_spans) > 1, (
+            "OpenInference should capture multiple steps"
+        )
 
         # Verify span count matches (both should capture sequence + steps)
         assert len(uipath_spans) == len(openinference_spans), (
@@ -709,7 +764,9 @@ class TestOpenInferenceScenarios:
         # Run with OpenInference instrumentation
         openinference_instrumentor = OpenInferenceLangChainInstrumentor()
         try:
-            openinference_instrumentor.instrument(tracer_provider=self.openinference_provider)
+            openinference_instrumentor.instrument(
+                tracer_provider=self.openinference_provider
+            )
             chain = RunnableParallel(
                 upper=RunnableLambda(branch1),
                 lower=RunnableLambda(branch2),
@@ -722,14 +779,20 @@ class TestOpenInferenceScenarios:
         openinference_spans = self.openinference_exporter.get_finished_spans()
 
         # Verify functional equivalence
-        assert uipath_result == openinference_result == {
-            "upper": "PARALLEL TEST",
-            "lower": "parallel test",
-        }
+        assert (
+            uipath_result
+            == openinference_result
+            == {
+                "upper": "PARALLEL TEST",
+                "lower": "parallel test",
+            }
+        )
 
         # Verify both captured parallel execution
         assert len(uipath_spans) > 2, "UiPath should capture parallel branches"
-        assert len(openinference_spans) > 2, "OpenInference should capture parallel branches"
+        assert len(openinference_spans) > 2, (
+            "OpenInference should capture parallel branches"
+        )
 
         # Verify span count matches
         assert len(uipath_spans) == len(openinference_spans), (
@@ -791,8 +854,12 @@ class TestOpenInferenceRegression:
         assert "output.value" in attrs, "REGRESSION: output.value attribute missing"
 
         # MUST HAVE: MIME types
-        assert "input.mime_type" in attrs, "REGRESSION: input.mime_type attribute missing"
-        assert "output.mime_type" in attrs, "REGRESSION: output.mime_type attribute missing"
+        assert "input.mime_type" in attrs, (
+            "REGRESSION: input.mime_type attribute missing"
+        )
+        assert "output.mime_type" in attrs, (
+            "REGRESSION: output.mime_type attribute missing"
+        )
 
     def test_mime_type_consistency(self) -> None:
         """Regression: Verify MIME type values remain consistent."""
@@ -882,7 +949,9 @@ class TestOpenInferenceRegression:
 
         # Verify no collision with OpenInference namespace
         for attr in all_attrs:
-            if not attr.startswith(("openinference.", "input.", "output.", "llm.", "gen_ai.", "run.")):
+            if not attr.startswith(
+                ("openinference.", "input.", "output.", "llm.", "gen_ai.", "run.")
+            ):
                 # Custom attributes should use uipath.* namespace
                 if not attr.startswith("uipath."):
                     # Some standard OTel attributes are allowed
@@ -928,7 +997,9 @@ class TestOpenInferenceRegression:
         # Should be valid JSON
         try:
             input_data = json.loads(input_value)
-            assert isinstance(input_data, dict), "input.value should deserialize to dict"
+            assert isinstance(input_data, dict), (
+                "input.value should deserialize to dict"
+            )
         except json.JSONDecodeError:
             pytest.fail("REGRESSION: input.value should be valid JSON")
 
@@ -938,7 +1009,11 @@ class TestOpenInferenceRegression:
 
         try:
             output_data = json.loads(output_value)
-            assert isinstance(output_data, dict), "output.value should deserialize to dict"
-            assert "processed" in output_data, "output should contain expected structure"
+            assert isinstance(output_data, dict), (
+                "output.value should deserialize to dict"
+            )
+            assert "processed" in output_data, (
+                "output should contain expected structure"
+            )
         except json.JSONDecodeError:
             pytest.fail("REGRESSION: output.value should be valid JSON")

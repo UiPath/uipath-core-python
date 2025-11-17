@@ -40,7 +40,7 @@ class LangGraphInstrumentor(UiPathInstrumentor):
         Returns:
             Collection of version specifiers
         """
-        return ("langgraph >= 0.1.0",)
+        return ("langgraph >= 1.0.0",)
 
     def _instrument(self, **kwargs: Any) -> None:
         """Apply instrumentation by wrapping StateGraph.compile().
@@ -49,7 +49,8 @@ class LangGraphInstrumentor(UiPathInstrumentor):
         a LangGraphTracer callback automatically.
 
         Args:
-            **kwargs: Additional instrumentation options
+            **kwargs: Additional instrumentation options including:
+                - tracer_provider: Optional OpenTelemetry TracerProvider (for testing)
         """
         try:
             from langgraph.graph import StateGraph
@@ -57,7 +58,37 @@ class LangGraphInstrumentor(UiPathInstrumentor):
             # LangGraph not installed - silently skip
             return
 
-        otel_client = self._get_otel_client()
+        # Get tracer provider from kwargs (for testing) or use global client
+        from opentelemetry.trace import get_tracer
+
+        tracer_provider = kwargs.get("tracer_provider")
+
+        # Try to get otel_client, but fall back to tracer_provider if client not initialized
+        try:
+            otel_client = self._get_otel_client()
+        except RuntimeError as e:
+            # Client not initialized - use tracer_provider directly if provided
+            if tracer_provider is None:
+                raise RuntimeError(
+                    "OTel client not initialized and no tracer_provider provided. "
+                    "Either call otel.init() first or pass tracer_provider to instrument()."
+                ) from e
+            # Create a minimal client wrapper for test mode
+            class _TestClientWrapper:
+                """Minimal wrapper for test mode when tracer_provider is provided."""
+
+                def __init__(self, provider: Any) -> None:
+                    self._provider = provider
+                    self._tracer = get_tracer(
+                        instrumenting_module_name="uipath.core.otel.integrations.langgraph",
+                        instrumenting_library_version="0.1.0",
+                        tracer_provider=provider,
+                    )
+
+                def get_tracer(self) -> Any:
+                    return self._tracer
+
+            otel_client = _TestClientWrapper(tracer_provider)  # type: ignore[assignment]
 
         # CRITICAL FIX: Guard against re-instrumentation
         # Check if StateGraph.compile has already been wrapped
@@ -72,7 +103,7 @@ class LangGraphInstrumentor(UiPathInstrumentor):
         original_compile = StateGraph.compile
 
         def traced_compile(
-            self: StateGraph,
+            self: StateGraph,  # type: ignore[type-arg]
             *args: Any,
             **compile_kwargs: Any,
         ) -> Any:
@@ -91,18 +122,25 @@ class LangGraphInstrumentor(UiPathInstrumentor):
                 CRITICAL FIX: Creates a parent span for the entire graph execution
                 to ensure all callback-created spans are properly parented.
                 """
+                from .._shared import get_session_id, get_thread_id
                 from ._callbacks import LangGraphTracer
 
-                # CRITICAL FIX: Start parent span for entire graph execution
-                # This ensures all node spans created by callbacks link properly
                 tracer = otel_client.get_tracer()
-                with tracer.start_as_current_span("langgraph.invoke"):
-                    # CALLBACK PRESERVATION FIX: Handle all callback configurations
-                    # Extract config (create copy to avoid mutating user's dict)
-                    original_config = kwargs.get("config") or {}
-                    config = original_config.copy() if isinstance(original_config, dict) else {}
+                with tracer.start_as_current_span("langgraph.invoke") as span:
+                    session_id = get_session_id()
+                    thread_id = get_thread_id()
+                    if session_id:
+                        span.set_attribute("session.id", session_id)
+                    if thread_id:
+                        span.set_attribute("thread_id", thread_id)
 
-                    # Collect user callbacks from multiple sources
+                    original_config = kwargs.get("config") or {}
+                    config = (
+                        original_config.copy()
+                        if isinstance(original_config, dict)
+                        else {}
+                    )
+
                     user_callbacks = []
 
                     # Source 1: config["callbacks"]
@@ -135,10 +173,15 @@ class LangGraphInstrumentor(UiPathInstrumentor):
                     config["callbacks"] = merged_callbacks
                     kwargs["config"] = config
 
-                    return original_invoke(*args, **kwargs)
+                    # Execute and set status on success
+                    result = original_invoke(*args, **kwargs)
+                    from opentelemetry.trace import Status, StatusCode
+
+                    span.set_status(Status(StatusCode.OK))
+                    return result
 
             # Replace invoke method
-            app.invoke = traced_invoke
+            app.invoke = traced_invoke  # type: ignore[method-assign]
 
             # HIGH FIX: Also wrap ainvoke for async support
             if hasattr(app, "ainvoke"):
@@ -151,15 +194,28 @@ class LangGraphInstrumentor(UiPathInstrumentor):
                     HIGH FIX: Async support for LangGraph workflows.
                     Uses *args, **kwargs to preserve original signature.
                     """
+                    # Start parent span for async graph execution
+                    from .._shared import get_session_id, get_thread_id
                     from ._callbacks import LangGraphTracer
 
-                    # Start parent span for async graph execution
                     tracer = otel_client.get_tracer()
-                    with tracer.start_as_current_span("langgraph.ainvoke"):
+                    with tracer.start_as_current_span("langgraph.ainvoke") as span:
+                        # Add session context to root span for trace correlation
+                        session_id = get_session_id()
+                        thread_id = get_thread_id()
+                        if session_id:
+                            span.set_attribute("session.id", session_id)
+                        if thread_id:
+                            span.set_attribute("thread_id", thread_id)
+
                         # CALLBACK PRESERVATION FIX: Handle all callback configurations
                         # Extract config (create copy to avoid mutating user's dict)
                         original_config = kwargs.get("config") or {}
-                        config = original_config.copy() if isinstance(original_config, dict) else {}
+                        config = (
+                            original_config.copy()
+                            if isinstance(original_config, dict)
+                            else {}
+                        )
 
                         # Collect user callbacks from multiple sources
                         user_callbacks = []
@@ -194,14 +250,19 @@ class LangGraphInstrumentor(UiPathInstrumentor):
                         config["callbacks"] = merged_callbacks
                         kwargs["config"] = config
 
-                        return await original_ainvoke(*args, **kwargs)
+                        # Execute and set status on success
+                        result = await original_ainvoke(*args, **kwargs)
+                        from opentelemetry.trace import Status, StatusCode
 
-                app.ainvoke = traced_ainvoke
+                        span.set_status(Status(StatusCode.OK))
+                        return result
+
+                app.ainvoke = traced_ainvoke  # type: ignore[method-assign]
 
             return app
 
         # Apply monkey-patch
-        StateGraph.compile = traced_compile  # type: ignore[method-assign]
+        StateGraph.compile = traced_compile  # type: ignore[assignment,method-assign]
 
         # CRITICAL FIX: Mark as instrumented to prevent re-instrumentation
         StateGraph.compile.__wrapped_by_uipath__ = True  # type: ignore[attr-defined]

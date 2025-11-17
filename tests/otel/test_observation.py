@@ -190,7 +190,9 @@ def test_observation_method_chaining(in_memory_exporter: InMemorySpanExporter) -
     assert gen_span.status.status_code == StatusCode.OK
 
 
-def test_generation_observation_update(in_memory_exporter: InMemorySpanExporter) -> None:
+def test_generation_observation_update(
+    in_memory_exporter: InMemorySpanExporter,
+) -> None:
     """Test GenerationObservation.update() with mock response.
 
     Args:
@@ -223,7 +225,9 @@ def test_generation_observation_update(in_memory_exporter: InMemorySpanExporter)
     assert len(gen_span.attributes) > 1  # More than just openinference.span.kind
 
 
-def test_observation_exit_on_exception(in_memory_exporter: InMemorySpanExporter) -> None:
+def test_observation_exit_on_exception(
+    in_memory_exporter: InMemorySpanExporter,
+) -> None:
     """Test observation records exception when raised in context.
 
     Args:

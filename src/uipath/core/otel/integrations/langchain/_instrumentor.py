@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Collection
 
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
+from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
+    BaseInstrumentor,
+)
 from opentelemetry.trace import get_tracer
-from wrapt import wrap_function_wrapper
+from wrapt import wrap_function_wrapper  # type: ignore[import-untyped]
 
 from .._shared import InstrumentationConfig
 from ._tracer import UiPathTracer
