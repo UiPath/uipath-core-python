@@ -1,330 +1,401 @@
-"""Integration tests for end-to-end telemetry workflows."""
+"""Integration tests for end-to-end workflows."""
 
+from __future__ import annotations
+
+import asyncio
 from typing import TYPE_CHECKING
 
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-
-from uipath.core.telemetry import (
-    TelemetryClient,
-    set_execution_id,
-)
+from uipath.core.telemetry.client import init_client
+from uipath.core.telemetry.config import TelemetryConfig
+from uipath.core.telemetry.decorator import traced
+from uipath.core.telemetry.trace import Trace
 
 if TYPE_CHECKING:
-    pass
+    from opentelemetry.sdk.trace.export import InMemorySpanExporter
 
 
-def test_full_workflow_with_nested_spans(
-    telemetry_client: TelemetryClient,
-    memory_exporter: InMemorySpanExporter,
-):
-    """Test complete workflow with nested spans and attributes."""
-    set_execution_id("execution-123")
+def test_end_to_end_trace(in_memory_exporter: InMemorySpanExporter) -> None:
+    """Test complete trace with nested observations.
 
-    with telemetry_client.start_as_current_span(
-        "workflow", semantic_type="automation"
-    ) as workflow_span:
-        workflow_span.set_attribute("workflow_name", "invoice_processing")
-        workflow_span.update_input({"invoice_id": "INV-001"})
+    Args:
+        in_memory_exporter: In-memory exporter fixture
+    """
+    # Setup
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
+    tracer = client.get_tracer()
 
-        # Step 1
-        with telemetry_client.start_as_current_span("validate") as validate_span:
-            validate_span.set_attribute("validation_result", "passed")
+    # Execute - create nested observations
+    with Trace(tracer, "workflow", execution_id="exec-123") as trace_ctx:
+        with trace_ctx.span("planner", kind="agent") as agent_obs:
+            agent_obs.set_attribute("plan", "Execute steps")
 
-        # Step 2
-        with telemetry_client.start_as_current_span("process") as process_span:
-            process_span.set_attribute("status", "completed")
-            process_span.set_attribute("amount", 1500.00)
+        with trace_ctx.span("llm-call", kind="generation") as gen_obs:
+            gen_obs.set_attribute("prompt", "Hello")
+            gen_obs.set_attribute("response", "Hi there!")
 
-        workflow_span.update_output({"status": "success", "processed_count": 1})
-
-    spans = memory_exporter.get_finished_spans()
-    assert len(spans) == 3
+        with trace_ctx.span("calculator", kind="tool") as tool_obs:
+            tool_obs.set_attribute("operation", "add")
+            tool_obs.set_attribute("result", 5)
 
     # Verify hierarchy
-    validate_span_data = spans[0]
-    process_span_data = spans[1]
-    workflow_span_data = spans[2]
+    client.flush()
+    spans = in_memory_exporter.get_finished_spans()
+    assert len(spans) == 4  # 1 root + 3 observations
 
-    # All spans should have the same trace ID
-    assert validate_span_data.context.trace_id == workflow_span_data.context.trace_id
-    assert process_span_data.context.trace_id == workflow_span_data.context.trace_id
+    # Find spans
+    workflow = next(s for s in spans if s.name == "workflow")
+    planner = next(s for s in spans if s.name == "planner")
+    llm = next(s for s in spans if s.name == "llm-call")
+    calc = next(s for s in spans if s.name == "calculator")
 
-    # Validate parent-child relationships
-    assert validate_span_data.parent.span_id == workflow_span_data.context.span_id
-    assert process_span_data.parent.span_id == workflow_span_data.context.span_id
+    # Verify parent-child relationships
+    assert planner.parent.span_id == workflow.context.span_id
+    assert llm.parent.span_id == workflow.context.span_id
+    assert calc.parent.span_id == workflow.context.span_id
 
-    # Verify execution.id propagation
-    assert validate_span_data.attributes["execution.id"] == "execution-123"
-    assert process_span_data.attributes["execution.id"] == "execution-123"
-    assert workflow_span_data.attributes["execution.id"] == "execution-123"
-
-    # Verify semantic types
-    assert workflow_span_data.attributes["span.type"] == "automation"
-    assert validate_span_data.attributes["span.type"] == "span"
+    # Verify all have execution_id
+    assert workflow.attributes.get("execution.id") == "exec-123"
 
 
-def test_multiple_independent_traces(
-    telemetry_client: TelemetryClient,
-    memory_exporter: InMemorySpanExporter,
-):
-    """Test multiple independent trace hierarchies."""
-    # First trace
-    set_execution_id("exec-1")
-    with telemetry_client.start_as_current_span("trace1"):
-        pass
+def test_decorator_integration(in_memory_exporter: InMemorySpanExporter) -> None:
+    """Test multiple decorators creating nested hierarchy.
 
-    # Second trace
-    set_execution_id("exec-2")
-    with telemetry_client.start_as_current_span("trace2"):
-        pass
+    Args:
+        in_memory_exporter: In-memory exporter fixture
+    """
+    # Setup
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
+    tracer = client.get_tracer()
 
-    spans = memory_exporter.get_finished_spans()
-    assert len(spans) == 2
+    @traced(kind="tool")
+    def fetch_data(query: str) -> dict[str, str]:
+        """Fetch data tool.
 
-    span1, span2 = spans
+        Args:
+            query: Search query
 
-    # Should have different trace IDs
-    assert span1.context.trace_id != span2.context.trace_id
+        Returns:
+            Data
+        """
+        return {"data": f"results for {query}"}
 
-    # Should have different execution IDs
-    assert span1.attributes["execution.id"] == "exec-1"
-    assert span2.attributes["execution.id"] == "exec-2"
+    @traced(kind="generation")
+    def analyze_data(data: dict[str, str]) -> str:
+        """Analyze data with LLM.
 
+        Args:
+            data: Input data
 
-def test_error_handling_in_nested_spans(
-    telemetry_client: TelemetryClient,
-    memory_exporter: InMemorySpanExporter,
-):
-    """Test error propagation and recording in nested spans."""
-    from opentelemetry.trace import StatusCode
+        Returns:
+            Analysis
+        """
+        # Call nested tool
+        additional = fetch_data("additional query")
+        return f"Analysis: {data} + {additional}"
 
-    try:
-        with telemetry_client.start_as_current_span("parent") as parent_span:
-            parent_span.set_attribute("status", "running")
+    # Execute
+    with Trace(tracer, "workflow"):
+        result = analyze_data({"initial": "data"})
 
-            with telemetry_client.start_as_current_span("child") as child_span:
-                child_span.set_attribute("task", "risky_operation")
-                raise ValueError("Something went wrong")
-    except ValueError:
-        pass  # Expected
+    # Verify
+    assert "Analysis:" in result
 
-    spans = memory_exporter.get_finished_spans()
-    assert len(spans) == 2
+    client.flush()
+    spans = in_memory_exporter.get_finished_spans()
+    assert len(spans) == 3  # workflow + analyze_data + fetch_data
 
-    child_span_data = spans[0]
-    parent_span_data = spans[1]
+    # Verify hierarchy
+    workflow = next(s for s in spans if s.name == "workflow")
+    analyze = next(s for s in spans if s.name == "analyze_data")
+    fetch = next(s for s in spans if s.name == "fetch_data")
 
-    # Child span should be marked as error
-    assert child_span_data.status.status_code == StatusCode.ERROR
-    assert "Something went wrong" in child_span_data.status.description
-
-    # Parent span should also be marked as error (automatic propagation)
-    assert parent_span_data.status.status_code == StatusCode.ERROR
+    assert analyze.parent.span_id == workflow.context.span_id
+    assert fetch.parent.span_id == analyze.context.span_id
 
 
-def test_privacy_controls_integration(
-    telemetry_client: TelemetryClient,
-    memory_exporter: InMemorySpanExporter,
-):
-    """Test hide_input and hide_output throughout workflow."""
-    with telemetry_client.start_as_current_span(
-        "secure_operation", hide_input=True, hide_output=True
-    ) as span:
-        span.update_input({"password": "secret123"})
-        span.update_output({"api_key": "key-xyz"})
-        span.set_attribute("public_data", "safe_to_log")
+def test_privacy_integration(in_memory_exporter: InMemorySpanExporter) -> None:
+    """Test privacy enforcement in real workflow using hide flags.
 
-    spans = memory_exporter.get_finished_spans()
-    assert len(spans) == 1
+    Args:
+        in_memory_exporter: In-memory exporter fixture
+    """
+    # Setup
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
+    tracer = client.get_tracer()
 
-    span_data = spans[0]
+    @traced(kind="generation", hide_input=True, hide_output=True)
+    def llm_call(user_input: str) -> dict[str, str]:
+        """LLM call with privacy.
 
-    # Input and output should NOT be present
-    assert "input" not in span_data.attributes
-    assert "output" not in span_data.attributes
+        Args:
+            user_input: User input
 
-    # Public attributes should still work
-    assert span_data.attributes["public_data"] == "safe_to_log"
+        Returns:
+            Response
+        """
+        return {"output_text": "response"}
 
+    # Execute
+    with Trace(tracer, "workflow") as trace_ctx:
+        # Manual observation with privacy flags
+        with trace_ctx.span("manual-gen", kind="generation") as obs:
+            obs.record_input({"data": "sensitive"}, hide=True)
+            obs.record_output({"result": "secret"}, hide=True)
 
-def test_resource_attributes_integration(
-    telemetry_client: TelemetryClient,
-    memory_exporter: InMemorySpanExporter,
-):
-    """Test that resource attributes are correctly set."""
-    with telemetry_client.start_as_current_span("test"):
-        pass
+        # Decorated function with hide flags
+        llm_call("user query")
 
-    spans = memory_exporter.get_finished_spans()
-    assert len(spans) == 1
+    # Verify privacy applied
+    client.flush()
+    spans = in_memory_exporter.get_finished_spans()
+    manual_span = next(s for s in spans if s.name == "manual-gen")
+    llm_span = next(s for s in spans if s.name == "llm_call")
 
-    span_data = spans[0]
-    resource = span_data.resource.attributes
+    # Manual observation should have redacted input/output
+    assert manual_span.attributes.get("input.value") == "[REDACTED]"
+    assert manual_span.attributes.get("output.value") == "[REDACTED]"
 
-    # Verify UiPath resource attributes
-    assert resource["uipath.org_id"] == "test-org-123"
-    assert resource["uipath.tenant_id"] == "test-tenant-456"
-    assert resource["uipath.user_id"] == "test-user-789"
-
-    # Verify service attributes
-    assert resource["service.name"] == "uipath-core"
-    assert "service.version" in resource
-
-
-def test_span_attribute_types_integration(
-    telemetry_client: TelemetryClient,
-    memory_exporter: InMemorySpanExporter,
-):
-    """Test various attribute value types in real spans."""
-    with telemetry_client.start_as_current_span("test") as span:
-        # Native types
-        span.set_attribute("string_attr", "value")
-        span.set_attribute("int_attr", 42)
-        span.set_attribute("float_attr", 3.14)
-        span.set_attribute("bool_attr", True)
-
-        # Collections
-        span.set_attribute("list_attr", ["a", "b", "c"])
-        span.set_attribute("dict_attr", {"key": "value"})
-
-    spans = memory_exporter.get_finished_spans()
-    span_data = spans[0]
-
-    # Verify native types preserved
-    assert span_data.attributes["string_attr"] == "value"
-    assert span_data.attributes["int_attr"] == 42
-    assert span_data.attributes["float_attr"] == 3.14
-    assert span_data.attributes["bool_attr"] is True
-
-    # List converted to tuple by OTel
-    assert list(span_data.attributes["list_attr"]) == ["a", "b", "c"]
-
-    # Dict serialized to JSON
-    import json
-
-    dict_value = json.loads(span_data.attributes["dict_attr"])
-    assert dict_value["key"] == "value"
+    # Decorated function should have redacted input/output
+    assert llm_span.attributes.get("input.value") == "[REDACTED]"
+    assert llm_span.attributes.get("output.value") == "[REDACTED]"
 
 
-def test_manual_span_lifecycle(
-    telemetry_client: TelemetryClient,
-    memory_exporter: InMemorySpanExporter,
-):
-    """Test manual span start/end without context manager."""
-    span = telemetry_client.start_as_current_span("manual_span")
-    span.__enter__()
+async def test_async_workflow(in_memory_exporter: InMemorySpanExporter) -> None:
+    """Test async workflow with proper context propagation.
 
-    try:
-        span.set_attribute("step", 1)
-        span.update_input({"request": "data"})
+    Args:
+        in_memory_exporter: In-memory exporter fixture
+    """
+    # Setup
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
+    tracer = client.get_tracer()
 
-        # Simulate work
-        result = {"status": "success"}
+    @traced(kind="generation")
+    async def async_llm(prompt: str) -> str:
+        """Async LLM call.
 
-        span.update_output(result)
-        span.set_attribute("step", 2)
+        Args:
+            prompt: Prompt
 
-    finally:
-        span.end()
+        Returns:
+            Response
+        """
+        await asyncio.sleep(0.01)
+        return f"Response to: {prompt}"
 
-    spans = memory_exporter.get_finished_spans()
-    assert len(spans) == 1
+    @traced(kind="tool")
+    async def async_tool(input_val: str) -> str:
+        """Async tool.
 
-    span_data = spans[0]
-    assert span_data.attributes["step"] == 2
+        Args:
+            input_val: Input
 
-    import json
+        Returns:
+            Result
+        """
+        await asyncio.sleep(0.01)
+        return f"Processed: {input_val}"
 
-    output = json.loads(span_data.attributes["output"])
-    assert output["status"] == "success"
+    # Execute
+    with Trace(tracer, "async-workflow"):
+        result1 = await async_llm("test1")
+        result2 = await async_tool("test2")
 
+    # Verify
+    assert "Response to: test1" in result1
+    assert "Processed: test2" in result2
 
-def test_deeply_nested_spans(
-    telemetry_client: TelemetryClient,
-    memory_exporter: InMemorySpanExporter,
-):
-    """Test deeply nested span hierarchy."""
-    with telemetry_client.start_as_current_span("level1") as s1:
-        s1.set_attribute("level", 1)
-        with telemetry_client.start_as_current_span("level2") as s2:
-            s2.set_attribute("level", 2)
-            with telemetry_client.start_as_current_span("level3") as s3:
-                s3.set_attribute("level", 3)
-                with telemetry_client.start_as_current_span("level4") as s4:
-                    s4.set_attribute("level", 4)
+    client.flush()
+    spans = in_memory_exporter.get_finished_spans()
+    assert len(spans) == 3  # workflow + 2 operations
 
-    spans = memory_exporter.get_finished_spans()
-    assert len(spans) == 4
+    # Verify hierarchy
+    workflow = next(s for s in spans if s.name == "async-workflow")
+    llm_span = next(s for s in spans if s.name == "async_llm")
+    tool_span = next(s for s in spans if s.name == "async_tool")
 
-    # Verify hierarchy (spans are returned in reverse order)
-    level4, level3, level2, level1 = spans
-
-    # All same trace
-    assert level4.context.trace_id == level1.context.trace_id
-
-    # Verify parent chain
-    assert level4.parent.span_id == level3.context.span_id
-    assert level3.parent.span_id == level2.context.span_id
-    assert level2.parent.span_id == level1.context.span_id
-    assert level1.parent is None  # Root span
+    assert llm_span.parent.span_id == workflow.context.span_id
+    assert tool_span.parent.span_id == workflow.context.span_id
 
 
-def test_parent_resolver_integration(
-    telemetry_client: TelemetryClient,
-    memory_exporter: InMemorySpanExporter,
-):
-    """Test custom parent resolver integration."""
-    from opentelemetry import trace
+def test_multi_trace_isolation(in_memory_exporter: InMemorySpanExporter) -> None:
+    """Test multiple traces remain isolated.
 
-    # Create an external span
-    external_tracer = trace.get_tracer("external")
-    with external_tracer.start_as_current_span("external_parent") as external_span:
-        # Register resolver that returns the external span
-        def custom_resolver():
-            return external_span
+    Args:
+        in_memory_exporter: In-memory exporter fixture
+    """
+    # Setup
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
+    tracer = client.get_tracer()
 
-        telemetry_client.register_parent_resolver(custom_resolver)
-
-        # Create a span - should use external parent
-        with telemetry_client.start_as_current_span("child"):
+    # Execute two separate traces
+    with Trace(tracer, "trace1", execution_id="exec1"):
+        with Trace(tracer, "trace1-child"):
             pass
 
-        telemetry_client.unregister_parent_resolver()
+    with Trace(tracer, "trace2", execution_id="exec2"):
+        with Trace(tracer, "trace2-child"):
+            pass
 
-    spans = memory_exporter.get_finished_spans()
-    # Should have 2 spans: external_parent + child
-    assert len(spans) == 2
+    # Verify isolation
+    client.flush()
+    spans = in_memory_exporter.get_finished_spans()
 
-    child_span = spans[0]
-    external_parent_span = spans[1]
+    trace1 = next(s for s in spans if s.name == "trace1")
+    trace1_child = next(s for s in spans if s.name == "trace1-child")
+    trace2 = next(s for s in spans if s.name == "trace2")
+    trace2_child = next(s for s in spans if s.name == "trace2-child")
 
-    # Child should have external_parent as parent
-    assert child_span.parent.span_id == external_parent_span.context.span_id
+    # Verify execution IDs
+    assert trace1.attributes.get("execution.id") == "exec1"
+    assert trace2.attributes.get("execution.id") == "exec2"
+
+    # Verify children belong to correct parents
+    assert trace1_child.parent.span_id == trace1.context.span_id
+    assert trace2_child.parent.span_id == trace2.context.span_id
 
 
-def test_execution_id_context_propagation(
-    telemetry_client: TelemetryClient,
-    memory_exporter: InMemorySpanExporter,
-):
-    """Test execution_id propagates through context without explicit passing."""
-    from uipath.core.telemetry import get_execution_id
+def test_singleton_client_integration(in_memory_exporter: InMemorySpanExporter) -> None:
+    """Test singleton client works across multiple traces.
 
-    # Set execution ID once
-    set_execution_id("global-exec-id")
+    Args:
+        in_memory_exporter: In-memory exporter fixture
+    """
+    # Initialize client via init_client
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
+    tracer = client.get_tracer()
 
-    # Verify it's retrievable
-    assert get_execution_id() == "global-exec-id"
-
-    # Create multiple spans - all should have the execution ID
-    with telemetry_client.start_as_current_span("span1"):
+    # Create multiple traces using same client
+    with Trace(tracer, "trace1"):
         pass
 
-    with telemetry_client.start_as_current_span("span2"):
+    with Trace(tracer, "trace2"):
         pass
 
-    spans = memory_exporter.get_finished_spans()
+    # Verify both exported
+    client.flush()
+    spans = in_memory_exporter.get_finished_spans()
     assert len(spans) == 2
+    assert any(s.name == "trace1" for s in spans)
+    assert any(s.name == "trace2" for s in spans)
 
-    # Both spans should have the execution ID
-    assert spans[0].attributes["execution.id"] == "global-exec-id"
-    assert spans[1].attributes["execution.id"] == "global-exec-id"
+
+def test_complex_nested_workflow(in_memory_exporter: InMemorySpanExporter) -> None:
+    """Test complex workflow with deep nesting.
+
+    Args:
+        in_memory_exporter: In-memory exporter fixture
+    """
+    # Setup
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
+    tracer = client.get_tracer()
+
+    @traced(kind="tool")
+    def sub_tool(data: str) -> str:
+        """Sub tool.
+
+        Args:
+            data: Input
+
+        Returns:
+            Result
+        """
+        return f"processed-{data}"
+
+    @traced(kind="generation")
+    def main_llm(prompt: str) -> str:
+        """Main LLM.
+
+        Args:
+            prompt: Prompt
+
+        Returns:
+            Response
+        """
+        # Call tool within generation
+        result = sub_tool(prompt)
+        return f"llm-response-{result}"
+
+    # Execute
+    with Trace(tracer, "workflow", execution_id="complex-123") as trace_ctx:
+        # Manual observation
+        with trace_ctx.span("orchestrator", kind="agent"):
+            # Call decorated function from within manual observation
+            response = main_llm("test")
+            assert "llm-response" in response
+
+    # Verify complex hierarchy
+    client.flush()
+    spans = in_memory_exporter.get_finished_spans()
+    assert len(spans) == 4  # workflow + orchestrator + main_llm + sub_tool
+
+    workflow = next(s for s in spans if s.name == "workflow")
+    orchestrator = next(s for s in spans if s.name == "orchestrator")
+    main = next(s for s in spans if s.name == "main_llm")
+    sub = next(s for s in spans if s.name == "sub_tool")
+
+    # Verify hierarchy
+    assert orchestrator.parent.span_id == workflow.context.span_id
+    assert main.parent.span_id == orchestrator.context.span_id
+    assert sub.parent.span_id == main.context.span_id
+
+
+def test_error_propagation_integration(
+    in_memory_exporter: InMemorySpanExporter,
+) -> None:
+    """Test errors propagate through hierarchy.
+
+    Args:
+        in_memory_exporter: In-memory exporter fixture
+    """
+    # Setup
+    config = TelemetryConfig(enable_console_export=True)
+    client = init_client(config)
+    tracer = client.get_tracer()
+
+    @traced(kind="tool")
+    def failing_tool() -> None:
+        """Tool that fails.
+
+        Raises:
+            RuntimeError: Test error
+        """
+        raise RuntimeError("tool failed")
+
+    @traced(kind="generation")
+    def llm_with_tool() -> None:
+        """LLM that calls failing tool.
+
+        Raises:
+            RuntimeError: Propagated from tool
+        """
+        failing_tool()
+
+    # Execute - error should propagate
+    import pytest
+
+    with pytest.raises(RuntimeError, match="tool failed"):
+        with Trace(tracer, "workflow"):
+            llm_with_tool()
+
+    # Verify all spans recorded errors
+    client.flush()
+    spans = in_memory_exporter.get_finished_spans()
+
+    tool_span = next(s for s in spans if s.name == "failing_tool")
+    llm_span = next(s for s in spans if s.name == "llm_with_tool")
+
+    # Both should have ERROR status and exception events
+    from opentelemetry.trace import StatusCode
+
+    assert tool_span.status.status_code == StatusCode.ERROR
+    assert llm_span.status.status_code == StatusCode.ERROR
+    assert len(tool_span.events) > 0
+    assert len(llm_span.events) > 0

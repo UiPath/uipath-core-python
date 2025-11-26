@@ -1,98 +1,54 @@
-"""Telemetry configuration with auto-detection and environment variable support.
+"""Telemetry configuration module."""
 
-This module provides immutable configuration for the telemetry client with:
-- Automatic library version detection via importlib.metadata
-- Environment variable overrides (12-factor app pattern)
-- Validation for configuration parameters
-- Frozen dataclass for hashability (singleton pattern support)
-"""
+from __future__ import annotations
 
-import importlib.metadata
 import os
 from dataclasses import dataclass
-from typing import Any, Optional, Tuple
 
 
 @dataclass(frozen=True)
 class TelemetryConfig:
-    """Immutable telemetry configuration.
+    """Configuration for UiPath OpenTelemetry client.
 
-    Configuration precedence (highest to lowest):
-    1. Explicit constructor parameters
-    2. Environment variables (UIPATH_*)
-    3. Default values
+    All parameters support standard OpenTelemetry environment variable overrides:
+    - OTEL_EXPORTER_OTLP_ENDPOINT
+    - OTEL_SERVICE_NAME
+    - OTEL_TRACES_EXPORTER (set to "console" for console export)
 
-    Example:
-        >>> # Explicit configuration with resource attributes
-        >>> from uipath.core.telemetry import ResourceAttr
-        >>> config = TelemetryConfig(
-        ...     resource_attributes=(
-        ...         (ResourceAttr.ORG_ID, "org-123"),
-        ...         (ResourceAttr.TENANT_ID, "tenant-456"),
-        ...     ),
-        ...     endpoint="https://telemetry.example.com"
-        ... )
-        >>>
-        >>> # Environment variable configuration
-        >>> # export UIPATH_TELEMETRY_ENDPOINT=https://telemetry.example.com
-        >>> config = TelemetryConfig()  # Auto-loads from env
+    Args:
+        endpoint: OTLP endpoint URL (None = console exporter for dev)
+        service_name: Service identifier for resource attributes
+        enable_console_export: Enable console exporter (for debugging)
+        resource_attributes: Additional resource attributes
     """
 
-    # Generic resource attributes (vendor-neutral, hashable)
-    # Tuple of tuples for frozen dataclass compatibility
-    resource_attributes: Optional[Tuple[Tuple[str, Any], ...]] = None
+    endpoint: str | None = None
+    service_name: str = "uipath-service"
+    enable_console_export: bool = False
+    resource_attributes: dict[str, str] | None = None
 
-    # Library metadata (auto-detected)
-    library_name: str = "uipath-core"
-    library_version: Optional[str] = None  # Auto-detect if None
+    def __post_init__(self) -> None:
+        """Resolve configuration from environment variables."""
+        if env_endpoint := os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
+            object.__setattr__(self, "endpoint", env_endpoint)
 
-    # OTLP exporter configuration
-    endpoint: Optional[str] = None  # Env: UIPATH_TELEMETRY_ENDPOINT
-    headers: Optional[Tuple[Tuple[str, str], ...]] = (
-        None  # Hashable headers (tuple of tuples)
-    )
+        if env_service := os.getenv("OTEL_SERVICE_NAME"):
+            object.__setattr__(self, "service_name", env_service)
 
-    # Batching configuration
-    batch_export: bool = True
-    max_queue_size: int = 2048
-    export_timeout_millis: int = 30000
+        if env_exporter := os.getenv("OTEL_TRACES_EXPORTER"):
+            object.__setattr__(
+                self, "enable_console_export", "console" in env_exporter.lower()
+            )
 
-    # Service metadata
-    service_name: str = "uipath-core"  # Env: UIPATH_SERVICE_NAME
-    service_namespace: Optional[str] = None  # Env: UIPATH_SERVICE_NAMESPACE
-    service_version: Optional[str] = None  # Env: UIPATH_SERVICE_VERSION
+        self._validate()
 
-    def __post_init__(self):
-        """Auto-detect library version and apply environment variable overrides.
+    def _validate(self) -> None:
+        """Validate configuration values.
 
-        This method runs after dataclass initialization to:
-        1. Auto-detect library version via importlib.metadata
-        2. Apply environment variable overrides for unset fields
-        3. Validate configuration parameters
+        Raises:
+            ValueError: If configuration is invalid
         """
-        if self.library_version is None:
-            try:
-                version = importlib.metadata.version(self.library_name)
-                object.__setattr__(self, "library_version", version)
-            except importlib.metadata.PackageNotFoundError:
-                object.__setattr__(self, "library_version", "unknown")
-
-        none_default_fields = {
-            "endpoint": ("UIPATH_TELEMETRY_ENDPOINT", None),
-            "service_namespace": ("UIPATH_SERVICE_NAMESPACE", None),
-            "service_version": ("UIPATH_SERVICE_VERSION", None),
-        }
-
-        non_none_default_fields = {
-            "service_name": ("UIPATH_SERVICE_NAME", "uipath-core"),
-        }
-
-        for field_name, (env_var, _) in none_default_fields.items():
-            env_value = os.getenv(env_var)
-            if env_value is not None and getattr(self, field_name) is None:
-                object.__setattr__(self, field_name, env_value)
-
-        for field_name, (env_var, default_value) in non_none_default_fields.items():
-            env_value = os.getenv(env_var)
-            if env_value is not None and getattr(self, field_name) == default_value:
-                object.__setattr__(self, field_name, env_value)
+        if self.endpoint and not self.endpoint.startswith(("http://", "https://")):
+            raise ValueError(
+                f"endpoint must start with http:// or https://, got {self.endpoint}"
+            )

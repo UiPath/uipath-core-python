@@ -1,81 +1,171 @@
-"""UiPath Core Telemetry - OpenTelemetry-based observability.
+"""UiPath OpenTelemetry integration.
 
-Provides lightweight, industry-standard telemetry for UiPath automations
-with zero-overhead when disabled.
+This module provides a simple, batteries-included OpenTelemetry integration
+for UiPath Python applications with AI/LLM observability.
 
-Quick Start:
-    >>> from uipath.core.telemetry import (
-    ...     get_telemetry_client,
-    ...     TelemetryConfig,
-    ...     ResourceAttr,
-    ...     SpanType,
-    ...     traced,
-    ... )
-    >>>
-    >>> # Configure once at startup with resource attributes
-    >>> config = TelemetryConfig(
-    ...     resource_attributes=(
-    ...         (ResourceAttr.ORG_ID, "org-123"),
-    ...         (ResourceAttr.TENANT_ID, "tenant-456"),
-    ...     ),
-    ...     endpoint="https://telemetry.example.com"
-    ... )
-    >>> client = get_telemetry_client(config)
-    >>>
-    >>> # Execution-scoped tracing (recommended for workflows)
-    >>> with client.start_as_current_span(
-    ...     "workflow",
-    ...     semantic_type=SpanType.AUTOMATION,
-    ...     execution_id="exec-12345"  # All children inherit this ID
-    ... ) as span:
-    ...     process_invoice()  # Automatically tagged with execution.id
-    ...     generate_report()  # All spans share execution context
-    >>> client.flush()
-    >>>
-    >>> # Use decorator for automatic instrumentation
-    >>> @traced(span_type="automation")
-    >>> def process_invoice():
-    ...     return {"status": "processed"}
-    >>>
-    >>> # Or manually set execution context (advanced usage)
-    >>> from uipath.core.telemetry import set_execution_id
-    >>> set_execution_id("exec-12345")
-    >>> with client.start_as_current_span("custom_operation") as span:
-    ...     span.set_attribute("key", "value")
+Example:
+    from uipath.core import telemetry
+
+    # Initialize telemetry (development mode)
+    telemetry.init(enable_console_export=True)
+
+    # Production mode
+    telemetry.init(
+        endpoint="https://telemetry.uipath.com",
+        service_name="invoice-processor",
+    )
+
+    # Decorate functions
+    @telemetry.traced(kind="generation")
+    def extract_invoice(prompt: str) -> dict:
+        response = openai.chat.completions.create(...)
+        return response
+
+    # Use trace context
+    with telemetry.trace("workflow", execution_id="exec-123") as trace:
+        result = extract_invoice("Extract from PDF...")
 """
 
-from .attributes import ResourceAttr, SpanAttr, SpanType
-from .client import (
-    TelemetryClient,
-    get_telemetry_client,
-    reset_telemetry_client,
-)
+from __future__ import annotations
+
+from typing import Any
+
+from .client import TelemetryClient, get_client, init_client
 from .config import TelemetryConfig
-from .context import (
-    clear_execution_id,
-    get_execution_id,
-    set_execution_id,
-)
 from .decorator import traced
 from .observation import ObservationSpan
+from .trace import Trace
 
 __all__ = [
-    # Core classes
-    "TelemetryConfig",
+    # Client
     "TelemetryClient",
-    "ObservationSpan",
-    # Public functions
-    "get_telemetry_client",
-    "reset_telemetry_client",
+    "init",
+    "shutdown",
+    "flush",
+    # Tracing
+    "trace",
     "traced",
-    # Context management
-    "set_execution_id",
-    "get_execution_id",
-    "clear_execution_id",
-    # Semantic conventions (enums)
-    "ResourceAttr",
-    "SpanAttr",
-    "SpanType",
+    # Observation
+    "ObservationSpan",
+    # Config
+    "TelemetryConfig",
 ]
 
-__version__ = "1.0.0"
+
+# ============================================================================
+# Initialization API
+# ============================================================================
+
+
+def init(
+    endpoint: str | None = None,
+    service_name: str | None = None,
+    enable_console_export: bool = False,
+    resource_attributes: dict[str, str] | None = None,
+) -> TelemetryClient:
+    """Initialize OpenTelemetry client with UiPath configuration.
+
+    Privacy is controlled per-span using hide_input/hide_output flags.
+    Sampling rate is hardcoded to 1.0 (100% sampling).
+
+    Args:
+        endpoint: OTLP endpoint URL (None = console exporter for dev)
+        service_name: Service name for resource attributes
+        enable_console_export: Enable console exporter (for debugging)
+        resource_attributes: Additional resource attributes
+
+    Returns:
+        Initialized TelemetryClient
+
+    Example:
+        import telemetry
+
+        # Development mode (console output)
+        telemetry.init(enable_console_export=True)
+
+        # Production mode
+        telemetry.init(
+            endpoint="https://telemetry.uipath.com",
+            service_name="invoice-processor",
+        )
+
+        # Privacy controlled at decorator level
+        @telemetry.traced(kind="tool", hide_input=True)
+        def authenticate(api_key: str):
+            ...
+    """
+    config = TelemetryConfig(
+        endpoint=endpoint,
+        service_name=service_name or "uipath-service",
+        enable_console_export=enable_console_export,
+        resource_attributes=resource_attributes,
+    )
+    return init_client(config)
+
+
+def shutdown(timeout_seconds: float = 10.0) -> bool:
+    """Shutdown telemetry and flush remaining spans.
+
+    Args:
+        timeout_seconds: Timeout for shutdown
+
+    Returns:
+        True if shutdown successful
+
+    Raises:
+        RuntimeError: If client not initialized (call init() first)
+    """
+    client = get_client()
+    return client.shutdown(timeout_seconds)
+
+
+def flush(timeout_seconds: float = 5.0) -> bool:
+    """Flush pending spans to exporter.
+
+    Args:
+        timeout_seconds: Timeout for flush
+
+    Returns:
+        True if flush successful
+
+    Raises:
+        RuntimeError: If client not initialized (call init() first)
+    """
+    client = get_client()
+    return client.flush(timeout_seconds)
+
+
+# ============================================================================
+# Trace Context API
+# ============================================================================
+
+
+def trace(
+    name: str,
+    execution_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> Trace:
+    """Create trace context manager for workflow execution.
+
+    Args:
+        name: Trace name
+        execution_id: Execution ID for correlation
+        metadata: Additional metadata attributes
+
+    Returns:
+        Trace context manager
+
+    Example:
+        with telemetry.trace("invoice-workflow", execution_id="exec-123") as trace:
+            result = extract_invoice(...)
+            url = trace.get_url()
+            print(f"View trace: {url}")
+    """
+    client = get_client()
+    tracer = client.get_tracer()
+    return Trace(
+        tracer=tracer,
+        name=name,
+        execution_id=execution_id,
+        metadata=metadata,
+    )
