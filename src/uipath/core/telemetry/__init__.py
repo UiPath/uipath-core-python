@@ -30,9 +30,16 @@ from __future__ import annotations
 
 from typing import Any
 
+from .attributes import SpanKind
 from .client import TelemetryClient, get_client, init_client
 from .config import TelemetryConfig
 from .decorator import traced
+from .integrations import (
+    instrument_langchain,
+    instrument_langgraph,
+    uninstrument_langchain,
+    uninstrument_langgraph,
+)
 from .observation import ObservationSpan
 from .trace import Trace
 
@@ -49,6 +56,13 @@ __all__ = [
     "ObservationSpan",
     # Config
     "TelemetryConfig",
+    # Attributes
+    "SpanKind",
+    # Integrations
+    "instrument_langchain",
+    "instrument_langgraph",
+    "uninstrument_langchain",
+    "uninstrument_langgraph",
 ]
 
 

@@ -128,10 +128,10 @@ def traced(
                         obs.record_input(input_data, hide=hide_input)
 
                         output_buffer: list[Any] = []
-                        MAX_OUTPUT_ITEMS = 10000
+                        max_items = client._config.max_generator_items
 
                         for item in func(*args, **kwargs):
-                            if len(output_buffer) < MAX_OUTPUT_ITEMS:
+                            if len(output_buffer) < max_items:
                                 output_buffer.append(item)
                             yield item
 
@@ -207,7 +207,7 @@ def _extract_input(
         processor: Optional custom processor
 
     Returns:
-        Processed input dictionary
+        Processed input dictionary (or redacted placeholder if processor fails)
     """
     bound_args = sig.bind_partial(*args, **kwargs)
     bound_args.apply_defaults()
@@ -218,7 +218,12 @@ def _extract_input(
         try:
             input_data = processor(input_data)
         except Exception as e:
-            logger.warning("Input processor failed: %s", e)
+            logger.warning(
+                "Input processor failed (%s); redacting input for safety",
+                type(e).__name__,
+            )
+            # Fail-safe: prevent raw data leakage when processor fails
+            return {"[REDACTED]": "processor_failed", "error": type(e).__name__}
 
     return input_data
 
@@ -234,12 +239,17 @@ def _process_output(
         processor: Optional custom processor
 
     Returns:
-        Processed output value
+        Processed output value (or redacted placeholder if processor fails)
     """
     if processor:
         try:
             return processor(value)
         except Exception as e:
-            logger.warning("Output processor failed: %s", e)
+            logger.warning(
+                "Output processor failed (%s); redacting output for safety",
+                type(e).__name__,
+            )
+            # Fail-safe: prevent raw data leakage when processor fails
+            return {"[REDACTED]": "processor_failed", "error": type(e).__name__}
 
     return value

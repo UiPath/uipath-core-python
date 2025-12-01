@@ -57,6 +57,7 @@ class TelemetryClient:
         self._config = config
         self._provider: TracerProvider | None = None
         self._tracer: Tracer | None = None
+        self._is_shutdown = False
 
         # Initialize if any exporter is configured (either OTLP or console)
         if config.endpoint or config.enable_console_export:
@@ -100,6 +101,7 @@ class TelemetryClient:
             instrumenting_module_name=DEFAULT_INSTRUMENTING_MODULE_NAME,
             instrumenting_library_version=__version__,
         )
+        self._is_shutdown = False
 
     def _create_exporter(self) -> SpanExporter:
         """Create span exporter based on configuration.
@@ -133,6 +135,19 @@ class TelemetryClient:
             raise RuntimeError("Telemetry client not initialized")
         return self._tracer
 
+    def get_tracer_provider(self) -> TracerProvider:
+        """Get OpenTelemetry TracerProvider.
+
+        Returns:
+            TracerProvider instance
+
+        Raises:
+            RuntimeError: If client not initialized
+        """
+        if self._provider is None:
+            raise RuntimeError("Telemetry client not initialized")
+        return self._provider
+
     def shutdown(self, timeout_seconds: float = 10.0) -> bool:
         """Shutdown telemetry and flush remaining spans.
 
@@ -146,12 +161,14 @@ class TelemetryClient:
             Exception: If shutdown fails
         """
         if self._provider is None:
+            self._is_shutdown = True
             return True
 
         logger.info("Shutting down Telemetry client (timeout=%.1fs)", timeout_seconds)
         self._provider.shutdown()
         self._provider = None
         self._tracer = None
+        self._is_shutdown = True
         return True
 
     def flush(self, timeout_seconds: float = 5.0) -> bool:
@@ -173,6 +190,14 @@ class TelemetryClient:
         result = self._provider.force_flush(timeout_millis=int(timeout_seconds * 1000))
         return result
 
+    def is_shutdown(self) -> bool:
+        """Check if client has been shutdown.
+
+        Returns:
+            True if shutdown() has been called
+        """
+        return self._is_shutdown
+
 
 def get_client() -> TelemetryClient:
     """Get singleton Telemetry client instance.
@@ -185,7 +210,9 @@ def get_client() -> TelemetryClient:
     """
     global _client
     if _client is None:
-        raise RuntimeError("Telemetry client not initialized. Call telemetry.init() first.")
+        raise RuntimeError(
+            "Telemetry client not initialized. Call telemetry.init() first."
+        )
     return _client
 
 
@@ -193,7 +220,8 @@ def init_client(config: TelemetryConfig) -> TelemetryClient:
     """Initialize global Telemetry client with configuration (thread-safe).
 
     This function is idempotent - calling it multiple times returns the same
-    client instance. Use reset_client() in tests to clear state.
+    client instance. If client was shutdown, creates new instance.
+    Use reset_client() in tests to clear state.
 
     Args:
         config: Client configuration
@@ -203,11 +231,11 @@ def init_client(config: TelemetryConfig) -> TelemetryClient:
     """
     global _client
 
-    if _client is not None:
+    if _client is not None and not _client.is_shutdown():
         return _client
 
     with _client_lock:
-        if _client is not None:
+        if _client is not None and not _client.is_shutdown():
             return _client
 
         _client = TelemetryClient(config)

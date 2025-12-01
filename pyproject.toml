@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
   "opentelemetry-sdk>=1.38.0",
   "opentelemetry-instrumentation>=0.59b0",
+  "openinference-instrumentation-langchain>=0.1.27",
   "pydantic>=2.12.3",
 ]
 classifiers = [
@@ -46,6 +47,9 @@ dev = [
   "pytest-mock>=3.11.1",
   "pre-commit>=4.1.0",
   "opentelemetry-exporter-otlp-proto-grpc>=1.38.0",
+  "langchain-openai>=1.1.0",
+  "langchain-anthropic>=1.1.0",
+  "langgraph>=1.0.0",
 ]
 
 [tool.hatch.build.targets.wheel]
