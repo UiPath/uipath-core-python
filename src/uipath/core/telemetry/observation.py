@@ -14,6 +14,7 @@ from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
 from .attributes import Attr
+from .integrations_full._shared import safe_json_dumps
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Span
@@ -93,12 +94,10 @@ class ObservationSpan:
             self.set_attribute(Attr.Common.INPUT_VALUE, "[REDACTED]")
             return self
 
-        try:
-            serialized = json.dumps(value)
-            self.set_attribute(Attr.Common.INPUT_VALUE, serialized)
-            self.set_attribute(Attr.Common.INPUT_MIME_TYPE, "application/json")
-        except (TypeError, ValueError):
-            self.set_attribute(Attr.Common.INPUT_VALUE, str(value))
+        # Use shared serialization utility for consistency
+        serialized = safe_json_dumps(value)
+        self.set_attribute(Attr.Common.INPUT_VALUE, serialized)
+        self.set_attribute(Attr.Common.INPUT_MIME_TYPE, "application/json")
 
         return self
 
@@ -120,12 +119,10 @@ class ObservationSpan:
             self.set_attribute(Attr.Common.OUTPUT_VALUE, "[REDACTED]")
             return self
 
-        try:
-            serialized = json.dumps(value)
-            self.set_attribute(Attr.Common.OUTPUT_VALUE, serialized)
-            self.set_attribute(Attr.Common.OUTPUT_MIME_TYPE, "application/json")
-        except (TypeError, ValueError):
-            self.set_attribute(Attr.Common.OUTPUT_VALUE, str(value))
+        # Use shared serialization utility for consistency
+        serialized = safe_json_dumps(value)
+        self.set_attribute(Attr.Common.OUTPUT_VALUE, serialized)
+        self.set_attribute(Attr.Common.OUTPUT_MIME_TYPE, "application/json")
 
         return self
 
@@ -225,7 +222,7 @@ class ObservationSpan:
             obs.update(response)  # Extracts model, tokens, etc.
         """
         try:
-            from .integrations._shared._parser_registry import (
+            from .integrations_full._shared._parser_registry import (
                 parse_provider_response,
             )
 

@@ -19,6 +19,7 @@ Architecture:
     - Attr.State.*: State tracking attributes (LangGraph)
     - Attr.Run.*: LangChain/LangGraph run attributes
     - Attr.UiPath.*: UiPath-specific attributes
+    - Attr.Privacy.*: Privacy control attributes
     - Attr.Error.*: Error attributes
     - Attr.Internal.*: Internal/custom attributes
 
@@ -56,6 +57,7 @@ class Attr:
         OUTPUT_MIME_TYPE = "output.mime_type"
 
         SESSION_ID = "session.id"
+        THREAD_ID = "thread.id"
         USER_ID = "user.id"
         METADATA = "metadata"
 
@@ -191,6 +193,12 @@ class Attr:
 
         WORKFLOW_NAME = "workflow.name"
         WORKFLOW_VERSION = "workflow.version"
+
+    class Privacy:
+        """Privacy control attributes."""
+
+        HIDE_INPUT = "uipath.privacy.hide_input"
+        HIDE_OUTPUT = "uipath.privacy.hide_output"
 
     class Error:
         """Error attributes."""

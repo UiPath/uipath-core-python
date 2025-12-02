@@ -34,7 +34,7 @@ from .attributes import SpanKind
 from .client import TelemetryClient, get_client, init_client
 from .config import TelemetryConfig
 from .decorator import traced
-from .integrations import (
+from .integrations_full import (
     instrument_langchain,
     instrument_langgraph,
     uninstrument_langchain,

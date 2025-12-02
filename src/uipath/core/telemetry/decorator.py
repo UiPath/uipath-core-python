@@ -30,8 +30,8 @@ def traced(
 ) -> Callable[[F], F]:
     """Unified decorator for function tracing with kind-specific behavior.
 
-    Supports sync/async/generator functions with privacy controls and
-    custom processors. Metadata is extracted via parsers using update().
+    Supports sync/async/generator/async-generator functions with privacy
+    controls and custom processors. Metadata is extracted via parsers using update().
 
     Args:
         name: Span name (defaults to function name)
@@ -54,6 +54,11 @@ def traced(
         @traced(kind="tool", hide_input=True)
         async def fetch_user_data(user_id: str) -> dict:
             return await db.get_user(user_id)
+
+        @traced(kind="generation", hide_output=True)
+        async def stream_completion(prompt: str):
+            async for chunk in openai.chat.completions.create(stream=True):
+                yield chunk
     """
 
     def decorator(func: F) -> F:
@@ -148,6 +153,56 @@ def traced(
                         raise
 
             return generator_wrapper  # type: ignore
+
+        elif inspect.isasyncgenfunction(func):
+
+            @functools.wraps(func)
+            async def async_generator_wrapper(*args: Any, **kwargs: Any) -> Any:
+                from .client import get_client
+
+                client = get_client()
+                tracer = client.get_tracer()
+
+                with tracer.start_as_current_span(
+                    span_name,
+                    kind=SpanKind.INTERNAL,
+                    record_exception=recording,
+                    set_status_on_exception=recording,
+                ) as span:
+                    if not recording or not span.is_recording():
+                        async for item in func(*args, **kwargs):
+                            yield item
+                        return
+
+                    obs = ObservationSpan(span, kind=kind)
+
+                    try:
+                        input_data = _extract_input(
+                            func_sig, args, kwargs, input_processor
+                        )
+                        obs.record_input(input_data, hide=hide_input)
+
+                        output_buffer: list[Any] = []
+                        max_items = client._config.max_generator_items
+
+                        async for item in func(*args, **kwargs):
+                            if len(output_buffer) < max_items:
+                                output_buffer.append(item)
+                            yield item
+
+                        if output_buffer:
+                            output_data = _process_output(
+                                output_buffer, output_processor
+                            )
+                            obs.record_output(output_data, hide=hide_output)
+
+                        obs.set_status_ok()
+
+                    except Exception as e:
+                        obs.record_exception(e)
+                        raise
+
+            return async_generator_wrapper  # type: ignore
 
         else:
 
