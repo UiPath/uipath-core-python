@@ -14,7 +14,7 @@ from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
 from .attributes import Attr
-from .integrations_full._shared import safe_json_dumps
+from ._utils import safe_json_dumps
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Span
@@ -222,17 +222,11 @@ class ObservationSpan:
             obs.update(response)  # Extracts model, tokens, etc.
         """
         try:
-            from .integrations_full._shared._parser_registry import (
-                parse_provider_response,
-            )
-
-            attributes = parse_provider_response(provider_response)
-            for key, value in attributes.items():
-                self.set_attribute(key, value)
-
+            # NOTE: Parser registry was removed with integrations_full deprecation.
+            # This method is now a no-op. For rich metadata extraction, use
+            # integrations_openinference which delegates to OpenInference.
             logger.debug(
-                "Successfully parsed provider response: %d attributes",
-                len(attributes),
+                "update() is deprecated - use integrations_openinference for automatic metadata extraction"
             )
         except Exception as e:
             logger.warning(

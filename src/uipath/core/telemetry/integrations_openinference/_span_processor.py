@@ -5,8 +5,7 @@ from typing import Optional
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 
 from uipath.core.telemetry.attributes import Attr
-
-from ._session_context import get_session_id, get_thread_id
+from uipath.core.telemetry.context import get_session_id, get_thread_id
 
 
 class UiPathSpanProcessor(SpanProcessor):

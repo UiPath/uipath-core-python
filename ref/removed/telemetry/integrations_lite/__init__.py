@@ -1,8 +1,20 @@
-"""Lightweight telemetry integrations for LangChain and LangGraph.
+"""DEPRECATED: Lightweight telemetry integrations for LangChain and LangGraph (Legacy).
+
+.. deprecated:: 2025-12-01
+   This module is deprecated and will be removed in a future version.
+   Please use ``uipath.core.telemetry.integrations_openinference`` instead.
+
+   Migration guide:
+   - Old: from uipath.core.telemetry.integrations_lite import instrument_langchain
+   - New: from uipath.core.telemetry.integrations_openinference import instrument_langchain
+
+   See: src/uipath/core/telemetry/integrations_openinference/README.md
+
+LEGACY IMPLEMENTATION - NOT RECOMMENDED FOR NEW CODE
 
 This module provides minimal, easy-to-use instrumentation for LangChain and
-LangGraph following KISS/YAGNI/DRY principles. Use this when you need basic
-tracing without the overhead of rich metadata extraction.
+LangGraph following KISS/YAGNI/DRY principles. However, integrations_openinference
+provides the same benefits with automatic rich metadata via OpenInference delegation.
 
 Example:
     >>> from uipath.core.telemetry import init
@@ -56,6 +68,16 @@ Trade-offs vs Full Integration:
     - ✅ Custom callback handlers
     - ✅ Production-grade observability
 """
+
+import warnings
+
+warnings.warn(
+    "integrations_lite is deprecated. "
+    "Use integrations_openinference instead for automatic rich metadata via OpenInference. "
+    "See src/uipath/core/telemetry/integrations_openinference/README.md for migration guide.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 from .langchain import (
     instrument_langchain,

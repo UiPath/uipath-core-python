@@ -2,12 +2,12 @@
 
 **Simple wrapper around OpenInference with UiPath session context**
 
-This package provides a minimal wrapper (~92 LOC) around [OpenInference](https://github.com/Arize-ai/openinference) that adds UiPath session context (session_id, thread_id) to all spans.
+This package provides a minimal wrapper (~116 LOC) around [OpenInference](https://github.com/Arize-ai/openinference) that adds UiPath session context (session_id, thread_id) to all spans.
 
 **Key Benefits:**
-- ✅ **Minimal code** - Only 92 implementation lines (vs ~1,800 for full integrations)
-- ✅ **Self-contained** - Zero dependencies on other telemetry modules
-- ✅ **Simple API** - Only 4 public functions
+- ✅ **Minimal code** - Only 116 implementation lines (vs ~1,800 for full integrations)
+- ✅ **Uses core context** - Session management in core telemetry module
+- ✅ **Simple API** - Only 4 public functions (re-exported from core)
 - ✅ **Rich metadata** - Tokens, costs, models from OpenInference
 - ✅ **Automatic instrumentation** - Zero LangChain/LangGraph code changes
 
@@ -52,11 +52,11 @@ result = graph.invoke({"a": 5, "b": 3})
 - ✅ **OpenInference conventions** - llm.*, tool.*, embedding.* attributes
 - ✅ **Production-tested** - Battle-tested by wider community
 
-### From UiPath Layer (92 LOC)
+### From UiPath Layer (116 LOC)
 
-- ✅ **UiPath session attributes** - session.id, thread.id
-- ✅ **ContextVar-based** - Async-safe context propagation
-- ✅ **Self-contained** - No dependencies on other telemetry modules
+- ✅ **UiPath session attributes** - session.id, thread.id (from core context)
+- ✅ **SpanProcessor integration** - Automatically injects session context into all spans
+- ✅ **Simple wrapper** - Minimal code, delegates to OpenInference
 
 ## Complete Example
 
@@ -349,17 +349,20 @@ pytest tests/telemetry/integrations_openinference/ --cov=src/uipath/core/telemet
 
 ## Implementation Stats
 
-**File Structure:**
+**File Structure (integrations_openinference):**
 - `__init__.py` - 114 lines (public API + docs)
-- `_instrumentor.py` - 59 lines (OpenInference wrapper)
-- `_span_processor.py` - 60 lines (UiPath attribute injection)
-- `_session_context.py` - 72 lines (ContextVar session management)
+- `_instrumentor.py` - 58 lines (OpenInference wrapper)
+- `_span_processor.py` - 58 lines (UiPath attribute injection)
 
-**Total:**
-- 305 total lines
-- 92 implementation lines (excluding `__init__.py`)
-- 127 comment/docstring lines
-- 4 public exports
+**Core Telemetry (shared across all integrations):**
+- `context.py` - 84 lines (ContextVar session/thread management)
+
+**Total (integrations_openinference only):**
+- 230 total lines
+- 116 implementation lines (excluding `__init__.py`)
+- 4 public exports (re-exported from core)
+
+**Note:** Session context (`set_session_context`, `clear_session_context`) is now in the core telemetry module at `uipath.core.telemetry.context`, making it available to all integrations. This package re-exports these functions for convenience.
 
 **Dependencies:**
 - `opentelemetry-sdk>=1.38.0`

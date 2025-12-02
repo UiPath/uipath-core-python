@@ -44,11 +44,12 @@ Examples:
 
 from typing import Any
 
-from ._instrumentor import UiPathLangChainInstrumentor
-from ._session_context import (
+from uipath.core.telemetry.context import (
     clear_session_context,
     set_session_context,
 )
+
+from ._instrumentor import UiPathLangChainInstrumentor
 
 __all__ = [
     "instrument_langchain",
