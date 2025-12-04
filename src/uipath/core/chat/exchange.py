@@ -44,8 +44,10 @@ class UiPathConversationExchangeEvent(BaseModel):
     """Encapsulates a single exchange in the conversation."""
 
     exchange_id: str = Field(..., alias="exchangeId")
-    start: UiPathConversationExchangeStartEvent | None = None
-    end: UiPathConversationExchangeEndEvent | None = None
+    start: UiPathConversationExchangeStartEvent | None = Field(
+        None, alias="startExchange"
+    )
+    end: UiPathConversationExchangeEndEvent | None = Field(None, alias="endExchange")
     message: UiPathConversationMessageEvent | None = None
     meta_event: dict[str, Any] | None = Field(None, alias="metaEvent")
 

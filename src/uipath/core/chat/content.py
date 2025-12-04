@@ -10,7 +10,6 @@ from .citation import UiPathConversationCitation, UiPathConversationCitationEven
 class UiPathConversationContentPartChunkEvent(BaseModel):
     """Contains a chunk of a message content part."""
 
-    content_part_sequence: int | None = Field(None, alias="contentPartSequence")
     data: str | None = None
     citation: UiPathConversationCitationEvent | None = None
 
@@ -42,8 +41,12 @@ class UiPathConversationContentPartEvent(BaseModel):
     """Encapsulates events related to message content parts."""
 
     content_part_id: str = Field(..., alias="contentPartId")
-    start: UiPathConversationContentPartStartEvent | None = None
-    end: UiPathConversationContentPartEndEvent | None = None
+    start: UiPathConversationContentPartStartEvent | None = Field(
+        None, alias="startContentPart"
+    )
+    end: UiPathConversationContentPartEndEvent | None = Field(
+        None, alias="endContentPart"
+    )
     chunk: UiPathConversationContentPartChunkEvent | None = None
     meta_event: dict[str, Any] | None = Field(None, alias="metaEvent")
 
