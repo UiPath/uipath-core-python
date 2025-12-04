@@ -31,8 +31,10 @@ class UiPathConversationMessageEvent(BaseModel):
     """Encapsulates sub-events related to a message."""
 
     message_id: str = Field(..., alias="messageId")
-    start: UiPathConversationMessageStartEvent | None = None
-    end: UiPathConversationMessageEndEvent | None = None
+    start: UiPathConversationMessageStartEvent | None = Field(
+        None, alias="startMessage"
+    )
+    end: UiPathConversationMessageEndEvent | None = Field(None, alias="endMessage")
     content_part: UiPathConversationContentPartEvent | None = Field(
         None, alias="contentPart"
     )
