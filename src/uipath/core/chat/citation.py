@@ -1,8 +1,10 @@
 """Citation events for message content."""
 
-from typing import Any
+from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from .error import UiPathConversationErrorEvent
 
 
 class UiPathConversationCitationStartEvent(BaseModel):
@@ -14,7 +16,7 @@ class UiPathConversationCitationStartEvent(BaseModel):
 class UiPathConversationCitationEndEvent(BaseModel):
     """Indicates the end of a citation target in a content part."""
 
-    sources: list[dict[str, Any]]
+    sources: list[UiPathConversationCitationSource]
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
@@ -27,6 +29,7 @@ class UiPathConversationCitationEvent(BaseModel):
         None, alias="startCitation"
     )
     end: UiPathConversationCitationEndEvent | None = Field(None, alias="endCitation")
+    error: UiPathConversationErrorEvent | None = Field(None, alias="citationError")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
@@ -52,9 +55,10 @@ class UiPathConversationCitationSourceMedia(BaseModel):
 class UiPathConversationCitationSource(BaseModel):
     """Represents a citation source, either a URL or media reference."""
 
-    title: str | None = None
+    title: str
+    number: int
 
-    # Union of Url or Media
+    # Union of Url or Media - these are optional
     url: str | None = None
     mime_type: str | None = Field(None, alias="mimeType")
     download_url: str | None = Field(None, alias="downloadUrl")

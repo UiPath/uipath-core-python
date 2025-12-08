@@ -66,12 +66,22 @@ from .conversation import (
     UiPathConversationStartedEvent,
     UiPathConversationStartEvent,
 )
-from .event import UiPathConversationEvent
+from .error import (
+    UiPathConversationErrorEndEvent,
+    UiPathConversationErrorEvent,
+    UiPathConversationErrorStartEvent,
+)
+from .event import UiPathConversationEvent, UiPathConversationLabelUpdatedEvent
 from .exchange import (
     UiPathConversationExchange,
     UiPathConversationExchangeEndEvent,
     UiPathConversationExchangeEvent,
     UiPathConversationExchangeStartEvent,
+)
+from .interrupt import (
+    UiPathConversationInterruptEndEvent,
+    UiPathConversationInterruptEvent,
+    UiPathConversationInterruptStartEvent,
 )
 from .message import (
     UiPathConversationMessage,
@@ -91,6 +101,11 @@ from .tool import (
 __all__ = [
     # Root
     "UiPathConversationEvent",
+    "UiPathConversationLabelUpdatedEvent",
+    # Error
+    "UiPathConversationErrorStartEvent",
+    "UiPathConversationErrorEndEvent",
+    "UiPathConversationErrorEvent",
     # Conversation
     "UiPathConversationCapabilities",
     "UiPathConversationStartEvent",
@@ -106,6 +121,10 @@ __all__ = [
     "UiPathConversationMessageEndEvent",
     "UiPathConversationMessageEvent",
     "UiPathConversationMessage",
+    # Interrupt
+    "UiPathConversationInterruptStartEvent",
+    "UiPathConversationInterruptEndEvent",
+    "UiPathConversationInterruptEvent",
     # Content
     "UiPathConversationContentPartChunkEvent",
     "UiPathConversationContentPartStartEvent",

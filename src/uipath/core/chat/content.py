@@ -5,6 +5,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from .citation import UiPathConversationCitation, UiPathConversationCitationEvent
+from .error import UiPathConversationErrorEvent
 
 
 class UiPathConversationContentPartChunkEvent(BaseModel):
@@ -21,6 +22,9 @@ class UiPathConversationContentPartStartEvent(BaseModel):
 
     mime_type: str = Field(..., alias="mimeType")
     metadata: dict[str, Any] | None = Field(None, alias="metaData")
+    external_value: "UiPathExternalValue | None" = Field(None, alias="externalValue")
+    name: str | None = None
+    timestamp: str | None = None
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
@@ -49,6 +53,7 @@ class UiPathConversationContentPartEvent(BaseModel):
     )
     chunk: UiPathConversationContentPartChunkEvent | None = None
     meta_event: dict[str, Any] | None = Field(None, alias="metaEvent")
+    error: UiPathConversationErrorEvent | None = Field(None, alias="contentPartError")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
@@ -64,7 +69,7 @@ class UiPathInlineValue(BaseModel):
 class UiPathExternalValue(BaseModel):
     """Used when a value is too large to be returned inline."""
 
-    url: str
+    uri: str
     byte_count: int | None = Field(None, alias="byteCount")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
