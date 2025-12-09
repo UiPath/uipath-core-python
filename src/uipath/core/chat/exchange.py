@@ -20,6 +20,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .error import UiPathConversationErrorEvent
 from .message import UiPathConversationMessage, UiPathConversationMessageEvent
 
 
@@ -28,6 +29,7 @@ class UiPathConversationExchangeStartEvent(BaseModel):
 
     conversation_sequence: int | None = Field(None, alias="conversationSequence")
     metadata: dict[str, Any] | None = Field(None, alias="metaData")
+    timestamp: str | None = None
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
@@ -50,6 +52,7 @@ class UiPathConversationExchangeEvent(BaseModel):
     end: UiPathConversationExchangeEndEvent | None = Field(None, alias="endExchange")
     message: UiPathConversationMessageEvent | None = None
     meta_event: dict[str, Any] | None = Field(None, alias="metaEvent")
+    error: UiPathConversationErrorEvent | None = Field(None, alias="exchangeError")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 

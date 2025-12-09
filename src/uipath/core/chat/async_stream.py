@@ -4,11 +4,12 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .error import UiPathConversationErrorEvent
+
 
 class UiPathConversationInputStreamChunkEvent(BaseModel):
     """Represents a single chunk of input stream data."""
 
-    input_stream_sequence: int | None = Field(None, alias="inputStreamSequence")
     data: str
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
@@ -44,9 +45,16 @@ class UiPathConversationAsyncInputStreamEvent(BaseModel):
     """Encapsulates sub-events related to an asynchronous input stream."""
 
     stream_id: str = Field(..., alias="streamId")
-    start: UiPathConversationAsyncInputStreamStartEvent | None = None
-    end: UiPathConversationAsyncInputStreamEndEvent | None = None
+    start: UiPathConversationAsyncInputStreamStartEvent | None = Field(
+        None, alias="startAsyncInputStream"
+    )
+    end: UiPathConversationAsyncInputStreamEndEvent | None = Field(
+        None, alias="endAsyncInputStream"
+    )
     chunk: UiPathConversationInputStreamChunkEvent | None = None
     meta_event: dict[str, Any] | None = Field(None, alias="metaEvent")
+    error: UiPathConversationErrorEvent | None = Field(
+        None, alias="asyncInputStreamError"
+    )
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)

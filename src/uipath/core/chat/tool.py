@@ -5,6 +5,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from .content import InlineOrExternal
+from .error import UiPathConversationErrorEvent
 
 
 class UiPathConversationToolCallResult(BaseModel):
@@ -23,7 +24,7 @@ class UiPathConversationToolCall(BaseModel):
 
     tool_call_id: str = Field(..., alias="toolCallId")
     name: str
-    arguments: InlineOrExternal | None = None
+    input: InlineOrExternal | None = None
     timestamp: str | None = None
     result: UiPathConversationToolCallResult | None = None
 
@@ -62,5 +63,6 @@ class UiPathConversationToolCallEvent(BaseModel):
     )
     end: UiPathConversationToolCallEndEvent | None = Field(None, alias="endToolCall")
     meta_event: dict[str, Any] | None = Field(None, alias="metaEvent")
+    error: UiPathConversationErrorEvent | None = Field(None, alias="toolCallError")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)

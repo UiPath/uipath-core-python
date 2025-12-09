@@ -5,6 +5,8 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from .content import UiPathConversationContentPart, UiPathConversationContentPartEvent
+from .error import UiPathConversationErrorEvent
+from .interrupt import UiPathConversationInterruptEvent
 from .tool import UiPathConversationToolCall, UiPathConversationToolCallEvent
 
 
@@ -39,7 +41,9 @@ class UiPathConversationMessageEvent(BaseModel):
         None, alias="contentPart"
     )
     tool_call: UiPathConversationToolCallEvent | None = Field(None, alias="toolCall")
+    interrupt: UiPathConversationInterruptEvent | None = None
     meta_event: dict[str, Any] | None = Field(None, alias="metaEvent")
+    error: UiPathConversationErrorEvent | None = Field(None, alias="messageError")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
