@@ -11,7 +11,7 @@ from ._evaluators import (
 )
 from .guardrails import (
     BooleanRule,
-    CustomGuardrail,
+    DeterministicGuardrail,
     GuardrailValidationResult,
     NumberRule,
     UniversalRule,
@@ -19,41 +19,41 @@ from .guardrails import (
 )
 
 
-class CustomGuardrailsService(BaseModel):
-    @traced("evaluate_pre_custom_guardrail", run_type="uipath")
-    def evaluate_pre_custom_guardrail(
+class DeterministicGuardrailsService(BaseModel):
+    @traced("evaluate_pre_deterministic_guardrail", run_type="uipath")
+    def evaluate_pre_deterministic_guardrail(
         self,
         input_data: dict[str, Any],
-        guardrail: CustomGuardrail,
+        guardrail: DeterministicGuardrail,
     ) -> GuardrailValidationResult:
-        """Evaluate custom guardrail rules against input data (pre-execution)."""
-        return self._evaluate_custom_guardrail(
+        """Evaluate deterministic guardrail rules against input data (pre-execution)."""
+        return self._evaluate_deterministic_guardrail(
             input_data=input_data,
             output_data={},
             guardrail=guardrail,
         )
 
-    @traced("evaluate_post_custom_guardrails", run_type="uipath")
-    def evaluate_post_custom_guardrail(
+    @traced("evaluate_post_deterministic_guardrails", run_type="uipath")
+    def evaluate_post_deterministic_guardrail(
         self,
         input_data: dict[str, Any],
         output_data: dict[str, Any],
-        guardrail: CustomGuardrail,
+        guardrail: DeterministicGuardrail,
     ) -> GuardrailValidationResult:
-        """Evaluate custom guardrail rules against input and output data."""
-        return self._evaluate_custom_guardrail(
+        """Evaluate deterministic guardrail rules against input and output data."""
+        return self._evaluate_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
         )
 
     @staticmethod
-    def _evaluate_custom_guardrail(
+    def _evaluate_deterministic_guardrail(
         input_data: dict[str, Any],
         output_data: dict[str, Any],
-        guardrail: CustomGuardrail,
+        guardrail: DeterministicGuardrail,
     ) -> GuardrailValidationResult:
-        """Evaluate custom guardrail rules against input and output data."""
+        """Evaluate deterministic guardrail rules against input and output data."""
         for rule in guardrail.rules:
             if isinstance(rule, WordRule):
                 passed, reason = evaluate_word_rule(rule, input_data, output_data)
@@ -75,5 +75,5 @@ class CustomGuardrailsService(BaseModel):
                 )
 
         return GuardrailValidationResult(
-            validation_passed=True, reason="All custom guardrail rules passed"
+            validation_passed=True, reason="All deterministic guardrail rules passed"
         )

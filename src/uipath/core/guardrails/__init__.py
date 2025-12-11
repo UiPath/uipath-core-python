@@ -3,35 +3,28 @@
 This module contains models related to UiPath Guardrails.
 """
 
-from ._custom_guardrails_service import CustomGuardrailsService
+from ._deterministic_guardrails_service import DeterministicGuardrailsService
 from .guardrails import (
     AllFieldsSelector,
     ApplyTo,
     BaseGuardrail,
     BooleanRule,
-    BuiltInValidatorGuardrail,
-    CustomGuardrail,
-    EnumListParameterValue,
+    DeterministicGuardrail,
     FieldReference,
     FieldSelector,
     FieldSource,
-    Guardrail,
     GuardrailScope,
     GuardrailSelector,
-    GuardrailType,
-    MapEnumParameterValue,
-    NumberParameterValue,
     NumberRule,
     Rule,
     SelectorType,
     SpecificFieldsSelector,
     UniversalRule,
-    ValidatorParameter,
     WordRule,
 )
 
 __all__ = [
-    "CustomGuardrailsService",
+    "DeterministicGuardrailsService",
     "FieldSource",
     "ApplyTo",
     "FieldReference",
@@ -40,19 +33,12 @@ __all__ = [
     "SpecificFieldsSelector",
     "FieldSelector",
     "BaseGuardrail",
-    "GuardrailType",
-    "Guardrail",
-    "BuiltInValidatorGuardrail",
-    "CustomGuardrail",
+    "DeterministicGuardrail",
     "WordRule",
     "NumberRule",
     "BooleanRule",
     "UniversalRule",
     "Rule",
-    "ValidatorParameter",
-    "EnumListParameterValue",
-    "MapEnumParameterValue",
-    "NumberParameterValue",
     "GuardrailScope",
     "GuardrailSelector",
 ]

@@ -7,8 +7,8 @@ from uipath.core.guardrails import (
     AllFieldsSelector,
     ApplyTo,
     BooleanRule,
-    CustomGuardrail,
-    CustomGuardrailsService,
+    DeterministicGuardrail,
+    DeterministicGuardrailsService,
     FieldReference,
     FieldSource,
     GuardrailScope,
@@ -21,21 +21,21 @@ from uipath.core.guardrails import (
 
 
 @pytest.fixture
-def service() -> CustomGuardrailsService:
-    return CustomGuardrailsService()
+def service() -> DeterministicGuardrailsService:
+    return DeterministicGuardrailsService()
 
 
-class TestCustomGuardrailsService:
+class TestDeterministicGuardrailsService:
     """Test GuardrailsService functionality."""
 
-    def test_evaluate_post_custom_guardrail_validation_passed(
+    def test_evaluate_post_deterministic_guardrail_validation_passed(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
-        """Test custom guardrail validation with passing rules."""
-        # Create a custom guardrail matching the C# example
-        custom_guardrail = CustomGuardrail(
-            id="test-custom-id",
+        """Test deterministic guardrail validation with passing rules."""
+        # Create a deterministic guardrail matching the C# example
+        deterministic_guardrail = DeterministicGuardrail(
+            id="test-deterministic-id",
             name="Pre execution Guardrail",
             description="Test pre-execution guardrail",
             enabled_for_evals=True,
@@ -73,22 +73,22 @@ class TestCustomGuardrailsService:
         }
         output_data: dict[str, Any] = {}
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
-            guardrail=custom_guardrail,
+            guardrail=deterministic_guardrail,
         )
 
         assert result.validation_passed is True
-        assert "All custom guardrail rules passed" in result.reason
+        assert "All deterministic guardrail rules passed" in result.reason
 
-    def test_evaluate_post_custom_guardrail_validation_failed_age(
+    def test_evaluate_post_deterministic_guardrail_validation_failed_age(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
-        """Test custom guardrail validation fails when age is too low."""
-        custom_guardrail = CustomGuardrail(
-            id="test-custom-id",
+        """Test deterministic guardrail validation fails when age is too low."""
+        deterministic_guardrail = DeterministicGuardrail(
+            id="test-deterministic-id",
             name="Pre execution Guardrail",
             description="Test pre-execution guardrail",
             enabled_for_evals=True,
@@ -126,22 +126,22 @@ class TestCustomGuardrailsService:
         }
         output_data: dict[str, Any] = {}
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
-            guardrail=custom_guardrail,
+            guardrail=deterministic_guardrail,
         )
 
         assert result.validation_passed is False
         assert "age" in result.reason.lower()
 
-    def test_evaluate_post_custom_guardrail_validation_failed_is_active(
+    def test_evaluate_post_deterministic_guardrail_validation_failed_is_active(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
-        """Test custom guardrail validation fails when isActive is False."""
-        custom_guardrail = CustomGuardrail(
-            id="test-custom-id",
+        """Test deterministic guardrail validation fails when isActive is False."""
+        deterministic_guardrail = DeterministicGuardrail(
+            id="test-deterministic-id",
             name="Pre execution Guardrail",
             description="Test pre-execution guardrail",
             enabled_for_evals=True,
@@ -179,23 +179,23 @@ class TestCustomGuardrailsService:
         }
         output_data: dict[str, Any] = {}
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
-            guardrail=custom_guardrail,
+            guardrail=deterministic_guardrail,
         )
 
         assert result.validation_passed is False
         assert "isActive" in result.reason or "isactive" in result.reason.lower()
         assert "comparing function" in result.reason.lower()
 
-    def test_evaluate_post_custom_guardrail_matches_regex_positive(
+    def test_evaluate_post_deterministic_guardrail_matches_regex_positive(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
-        """Test custom guardrail validation passes when regex matches."""
-        custom_guardrail = CustomGuardrail(
-            id="test-custom-id",
+        """Test deterministic guardrail validation passes when regex matches."""
+        deterministic_guardrail = DeterministicGuardrail(
+            id="test-deterministic-id",
             name="Regex Guardrail",
             description="Test regex guardrail",
             enabled_for_evals=True,
@@ -223,22 +223,22 @@ class TestCustomGuardrailsService:
         }
         output_data: dict[str, Any] = {}
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
-            guardrail=custom_guardrail,
+            guardrail=deterministic_guardrail,
         )
 
         assert result.validation_passed is True
-        assert "All custom guardrail rules passed" in result.reason
+        assert "All deterministic guardrail rules passed" in result.reason
 
-    def test_evaluate_post_custom_guardrail_matches_regex_negative(
+    def test_evaluate_post_deterministic_guardrail_matches_regex_negative(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
-        """Test custom guardrail validation fails when regex doesn't match."""
-        custom_guardrail = CustomGuardrail(
-            id="test-custom-id",
+        """Test deterministic guardrail validation fails when regex doesn't match."""
+        deterministic_guardrail = DeterministicGuardrail(
+            id="test-deterministic-id",
             name="Regex Guardrail",
             description="Test regex guardrail",
             enabled_for_evals=True,
@@ -266,22 +266,22 @@ class TestCustomGuardrailsService:
         }
         output_data: dict[str, Any] = {}
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
-            guardrail=custom_guardrail,
+            guardrail=deterministic_guardrail,
         )
 
         assert result.validation_passed is False
         assert "userName" in result.reason
 
-    def test_evaluate_post_custom_guardrail_word_func_positive(
+    def test_evaluate_post_deterministic_guardrail_word_func_positive(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
-        """Test custom guardrail validation passes when word func returns True."""
-        custom_guardrail = CustomGuardrail(
-            id="test-custom-id",
+        """Test deterministic guardrail validation passes when word func returns True."""
+        deterministic_guardrail = DeterministicGuardrail(
+            id="test-deterministic-id",
             name="Word Func Guardrail",
             description="Test word func guardrail",
             enabled_for_evals=True,
@@ -309,22 +309,22 @@ class TestCustomGuardrailsService:
         }
         output_data: dict[str, Any] = {}
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
-            guardrail=custom_guardrail,
+            guardrail=deterministic_guardrail,
         )
 
         assert result.validation_passed is True
-        assert "All custom guardrail rules passed" in result.reason
+        assert "All deterministic guardrail rules passed" in result.reason
 
-    def test_evaluate_post_custom_guardrail_word_func_negative(
+    def test_evaluate_post_deterministic_guardrail_word_func_negative(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
-        """Test custom guardrail validation fails when word func returns False."""
-        custom_guardrail = CustomGuardrail(
-            id="test-custom-id",
+        """Test deterministic guardrail validation fails when word func returns False."""
+        deterministic_guardrail = DeterministicGuardrail(
+            id="test-deterministic-id",
             name="Word Func Guardrail",
             description="Test word func guardrail",
             enabled_for_evals=True,
@@ -352,21 +352,21 @@ class TestCustomGuardrailsService:
         }
         output_data: dict[str, Any] = {}
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
-            guardrail=custom_guardrail,
+            guardrail=deterministic_guardrail,
         )
 
         assert result.validation_passed is False
 
-    def test_evaluate_post_custom_guardrail_number_func_positive(
+    def test_evaluate_post_deterministic_guardrail_number_func_positive(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
-        """Test custom guardrail validation passes when number func returns True."""
-        custom_guardrail = CustomGuardrail(
-            id="test-custom-id",
+        """Test deterministic guardrail validation passes when number func returns True."""
+        deterministic_guardrail = DeterministicGuardrail(
+            id="test-deterministic-id",
             name="Number Func Guardrail",
             description="Test number func guardrail",
             enabled_for_evals=True,
@@ -392,22 +392,22 @@ class TestCustomGuardrailsService:
         }
         output_data: dict[str, Any] = {}
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
-            guardrail=custom_guardrail,
+            guardrail=deterministic_guardrail,
         )
 
         assert result.validation_passed is True
-        assert "All custom guardrail rules passed" in result.reason
+        assert "All deterministic guardrail rules passed" in result.reason
 
-    def test_evaluate_post_custom_guardrail_number_func_negative(
+    def test_evaluate_post_deterministic_guardrail_number_func_negative(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
-        """Test custom guardrail validation fails when number func returns False."""
-        custom_guardrail = CustomGuardrail(
-            id="test-custom-id",
+        """Test deterministic guardrail validation fails when number func returns False."""
+        deterministic_guardrail = DeterministicGuardrail(
+            id="test-deterministic-id",
             name="Number Func Guardrail",
             description="Test number func guardrail",
             enabled_for_evals=True,
@@ -433,17 +433,17 @@ class TestCustomGuardrailsService:
         }
         output_data: dict[str, Any] = {}
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
-            guardrail=custom_guardrail,
+            guardrail=deterministic_guardrail,
         )
 
         assert result.validation_passed is False
 
     def test_should_trigger_policy_pre_execution_only_some_rules_not_met_returns_false(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
         """Test pre-execution guardrail fails when some rules are not met."""
         guardrail = self._create_guardrail_for_pre_execution()
@@ -454,7 +454,7 @@ class TestCustomGuardrailsService:
         }
         output_data: dict[str, Any] = {}
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
@@ -464,7 +464,7 @@ class TestCustomGuardrailsService:
 
     def test_should_ignore_post_execution_guardrail_for_pre_execution_returns_false(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
         """Test that pre-execution guardrail ignores post-execution data."""
         guardrail = self._create_guardrail_for_post_execution()
@@ -475,7 +475,7 @@ class TestCustomGuardrailsService:
         }
         output_data: dict[str, Any] = {}
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
@@ -486,7 +486,7 @@ class TestCustomGuardrailsService:
 
     def test_should_trigger_policy_post_execution_guardrail_for_pre_execution_returns_false(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
         """Test that pre-execution guardrail does not trigger in post-execution."""
         guardrail = self._create_guardrail_for_pre_execution()
@@ -501,7 +501,7 @@ class TestCustomGuardrailsService:
             "success": True,
         }
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
@@ -512,7 +512,7 @@ class TestCustomGuardrailsService:
 
     def test_should_trigger_policy_post_execution_with_output_fields_all_conditions_met_returns_true(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
         """Test post-execution guardrail passes when all conditions are met."""
         guardrail = self._create_guardrail_for_post_execution()
@@ -527,7 +527,7 @@ class TestCustomGuardrailsService:
             "success": True,
         }
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
@@ -537,7 +537,7 @@ class TestCustomGuardrailsService:
 
     def test_should_trigger_policy_post_execution_with_output_fields_input_conditions_not_met_returns_false(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
         """Test post-execution guardrail fails when input conditions are not met."""
         guardrail = self._create_guardrail_for_post_execution()
@@ -552,7 +552,7 @@ class TestCustomGuardrailsService:
             "success": True,
         }
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
@@ -562,7 +562,7 @@ class TestCustomGuardrailsService:
 
     def test_should_trigger_policy_post_execution_with_output_fields_output_conditions_not_met_returns_false(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
         """Test post-execution guardrail fails when output conditions are not met."""
         guardrail = self._create_guardrail_for_post_execution()
@@ -577,7 +577,7 @@ class TestCustomGuardrailsService:
             "success": True,
         }
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
@@ -587,7 +587,7 @@ class TestCustomGuardrailsService:
 
     def test_should_trigger_policy_post_execution_multiple_rules_all_conditions_must_be_met_returns_true(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
         """Test post-execution guardrail with multiple rules passes when all conditions are met."""
         guardrail = self._create_guardrail_with_multiple_rules()
@@ -602,7 +602,7 @@ class TestCustomGuardrailsService:
             "success": True,
         }
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
@@ -612,7 +612,7 @@ class TestCustomGuardrailsService:
 
     def test_should_trigger_policy_post_execution_rule_with_multiple_conditions_all_must_be_met_returns_true(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
         """Test guardrail with rule having multiple conditions passes when all are met."""
         guardrail = self._create_guardrail_with_rule_having_multiple_conditions()
@@ -627,7 +627,7 @@ class TestCustomGuardrailsService:
             "success": True,
         }
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
@@ -637,7 +637,7 @@ class TestCustomGuardrailsService:
 
     def test_should_trigger_policy_post_execution_rule_with_multiple_conditions_one_condition_not_met_returns_false(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
         """Test guardrail with multiple conditions fails when one condition is not met."""
         guardrail = self._create_guardrail_with_rule_having_multiple_conditions()
@@ -652,7 +652,7 @@ class TestCustomGuardrailsService:
             "success": True,
         }
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
@@ -662,10 +662,10 @@ class TestCustomGuardrailsService:
 
     def test_should_trigger_policy_post_execution_with_all_fields_selector_output_schema_has_fields_returns_true(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
         """Test guardrail with AllFieldsSelector passes when output has matching fields."""
-        guardrail = CustomGuardrail(
+        guardrail = DeterministicGuardrail(
             id="test-all-fields-id",
             name="Guardrail With All Fields Selector",
             description="Test all fields selector",
@@ -694,7 +694,7 @@ class TestCustomGuardrailsService:
             "success": True,
         }
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
@@ -704,10 +704,10 @@ class TestCustomGuardrailsService:
 
     def test_should_trigger_policy_post_execution_with_all_fields_selector_empty_output_schema_returns_false(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
         """Test guardrail with AllFieldsSelector fails when output is empty."""
-        guardrail = CustomGuardrail(
+        guardrail = DeterministicGuardrail(
             id="test-all-fields-id",
             name="Guardrail With All Fields Selector",
             description="Test all fields selector",
@@ -732,7 +732,7 @@ class TestCustomGuardrailsService:
         }
         output_data: dict[str, Any] = {}  # Empty output
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
@@ -742,7 +742,7 @@ class TestCustomGuardrailsService:
 
     def test_should_trigger_policy_pre_execution_always_rule_with_input_apply_to_returns_true(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
         """Test UniversalRule with INPUT ApplyTo triggers in pre-execution."""
         guardrail = self._create_guardrail_with_always_rule(ApplyTo.INPUT)
@@ -753,7 +753,7 @@ class TestCustomGuardrailsService:
         }
         output_data: dict[str, Any] = {}
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
@@ -763,7 +763,7 @@ class TestCustomGuardrailsService:
 
     def test_should_trigger_policy_pre_execution_always_rule_with_output_apply_to_returns_false(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
         """Test UniversalRule with OUTPUT ApplyTo does not trigger in pre-execution."""
         guardrail = self._create_guardrail_with_always_rule(ApplyTo.OUTPUT)
@@ -774,7 +774,7 @@ class TestCustomGuardrailsService:
         }
         output_data: dict[str, Any] = {}
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
@@ -784,7 +784,7 @@ class TestCustomGuardrailsService:
 
     def test_should_trigger_policy_pre_execution_always_rule_with_input_and_output_apply_to_returns_true(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
         """Test UniversalRule with INPUT_AND_OUTPUT ApplyTo triggers in pre-execution."""
         guardrail = self._create_guardrail_with_always_rule(ApplyTo.INPUT_AND_OUTPUT)
@@ -795,7 +795,7 @@ class TestCustomGuardrailsService:
         }
         output_data: dict[str, Any] = {}
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
@@ -805,7 +805,7 @@ class TestCustomGuardrailsService:
 
     def test_should_trigger_policy_post_execution_always_rule_with_input_apply_to_returns_false(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
         """Test UniversalRule with INPUT ApplyTo does not trigger in post-execution."""
         guardrail = self._create_guardrail_with_always_rule(ApplyTo.INPUT)
@@ -820,7 +820,7 @@ class TestCustomGuardrailsService:
             "success": True,
         }
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
@@ -830,7 +830,7 @@ class TestCustomGuardrailsService:
 
     def test_should_trigger_policy_post_execution_always_rule_with_output_apply_to_returns_true(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
         """Test UniversalRule with OUTPUT ApplyTo triggers in post-execution."""
         guardrail = self._create_guardrail_with_always_rule(ApplyTo.OUTPUT)
@@ -845,7 +845,7 @@ class TestCustomGuardrailsService:
             "success": True,
         }
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
@@ -855,7 +855,7 @@ class TestCustomGuardrailsService:
 
     def test_should_trigger_policy_post_execution_always_rule_with_input_and_output_apply_to_returns_true(
         self,
-        service: CustomGuardrailsService,
+        service: DeterministicGuardrailsService,
     ) -> None:
         """Test UniversalRule with INPUT_AND_OUTPUT ApplyTo triggers in post-execution."""
         guardrail = self._create_guardrail_with_always_rule(ApplyTo.INPUT_AND_OUTPUT)
@@ -870,7 +870,7 @@ class TestCustomGuardrailsService:
             "success": True,
         }
 
-        result = service.evaluate_post_custom_guardrail(
+        result = service.evaluate_post_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
@@ -880,9 +880,9 @@ class TestCustomGuardrailsService:
 
         # Helper methods to create guardrails
 
-    def _create_guardrail_for_pre_execution(self) -> CustomGuardrail:
+    def _create_guardrail_for_pre_execution(self) -> DeterministicGuardrail:
         """Create a guardrail for pre-execution testing."""
-        return CustomGuardrail(
+        return DeterministicGuardrail(
             id="test-pre-exec-id",
             name="Pre execution Guardrail",
             description="Test pre-execution guardrail",
@@ -913,9 +913,9 @@ class TestCustomGuardrailsService:
             ],
         )
 
-    def _create_guardrail_for_post_execution(self) -> CustomGuardrail:
+    def _create_guardrail_for_post_execution(self) -> DeterministicGuardrail:
         """Create a guardrail for post-execution testing."""
-        return CustomGuardrail(
+        return DeterministicGuardrail(
             id="test-post-exec-id",
             name="Guardrail for Post execution",
             description="Test post-execution guardrail",
@@ -946,9 +946,9 @@ class TestCustomGuardrailsService:
             ],
         )
 
-    def _create_guardrail_with_multiple_rules(self) -> CustomGuardrail:
+    def _create_guardrail_with_multiple_rules(self) -> DeterministicGuardrail:
         """Create a guardrail with multiple rules."""
-        return CustomGuardrail(
+        return DeterministicGuardrail(
             id="test-multiple-rules-id",
             name="Guardrail With Multiple Rules",
             description="Test guardrail with multiple rules",
@@ -991,9 +991,9 @@ class TestCustomGuardrailsService:
 
     def _create_guardrail_with_rule_having_multiple_conditions(
         self,
-    ) -> CustomGuardrail:
+    ) -> DeterministicGuardrail:
         """Create a guardrail with rule having multiple conditions."""
-        return CustomGuardrail(
+        return DeterministicGuardrail(
             id="test-multiple-conditions-id",
             name="Guardrail With Rule Having Multiple Conditions",
             description="Test guardrail with multiple conditions",
@@ -1034,9 +1034,11 @@ class TestCustomGuardrailsService:
             ],
         )
 
-    def _create_guardrail_with_always_rule(self, apply_to: ApplyTo) -> CustomGuardrail:
+    def _create_guardrail_with_always_rule(
+        self, apply_to: ApplyTo
+    ) -> DeterministicGuardrail:
         """Create a guardrail with an AlwaysRule (UniversalRule)."""
-        return CustomGuardrail(
+        return DeterministicGuardrail(
             id="test-always-rule-id",
             name="Guardrail With Always Rule",
             description="Test guardrail with always rule",
