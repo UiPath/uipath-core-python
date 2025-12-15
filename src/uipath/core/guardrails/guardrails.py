@@ -92,7 +92,10 @@ class WordRule(BaseModel):
 
     rule_type: Literal["word"] = Field(alias="$ruleType")
     field_selector: FieldSelector = Field(alias="fieldSelector")
-    func: Callable[[str], bool] = Field(exclude=True)
+    detects_violation: Callable[[str], bool] = Field(
+        exclude=True,
+        description="Function that returns True if the string violates the rule (validation should fail).",
+    )
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
@@ -111,7 +114,10 @@ class NumberRule(BaseModel):
 
     rule_type: Literal["number"] = Field(alias="$ruleType")
     field_selector: FieldSelector = Field(alias="fieldSelector")
-    func: Callable[[float], bool] = Field(exclude=True)
+    detects_violation: Callable[[float], bool] = Field(
+        exclude=True,
+        description="Function that returns True if the number violates the rule (validation should fail).",
+    )
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
@@ -121,7 +127,10 @@ class BooleanRule(BaseModel):
 
     rule_type: Literal["boolean"] = Field(alias="$ruleType")
     field_selector: FieldSelector = Field(alias="fieldSelector")
-    func: Callable[[bool], bool] = Field(exclude=True)
+    detects_violation: Callable[[bool], bool] = Field(
+        exclude=True,
+        description="Function that returns True if the boolean violates the rule (validation should fail).",
+    )
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
@@ -164,7 +173,7 @@ class BaseGuardrail(BaseModel):
 class DeterministicGuardrail(BaseGuardrail):
     """Deterministic guardrail model."""
 
-    guardrail_type: Literal["custom"] = Field(alias="custom")
+    guardrail_type: Literal["custom"] = Field(alias="$guardrailType")
     rules: list[Rule]
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")

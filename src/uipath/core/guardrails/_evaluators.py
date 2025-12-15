@@ -187,16 +187,15 @@ def evaluate_word_rule(
         field_str = field_value
 
         # Use the custom function to evaluate the rule
+        # If detects_violation returns True, it means the rule was violated (validation fails)
         try:
-            passed = rule.func(field_str)
+            violation_detected = rule.detects_violation(field_str)
         except Exception:
             # If function raises an exception, treat as failure
-            passed = False
+            violation_detected = True
 
-        if not passed:
-            reason = format_guardrail_error_message(
-                field_ref, "comparing function", None
-            )
+        if violation_detected:
+            reason = format_guardrail_error_message(field_ref, "violation check", None)
             return False, reason
 
     return True, "All word rule validations passed"
@@ -221,16 +220,15 @@ def evaluate_number_rule(
         field_num = float(field_value)
 
         # Use the custom function to evaluate the rule
+        # If detects_violation returns True, it means the rule was violated (validation fails)
         try:
-            passed = rule.func(field_num)
+            violation_detected = rule.detects_violation(field_num)
         except Exception:
             # If function raises an exception, treat as failure
-            passed = False
+            violation_detected = True
 
-        if not passed:
-            reason = format_guardrail_error_message(
-                field_ref, "comparing function", None
-            )
+        if violation_detected:
+            reason = format_guardrail_error_message(field_ref, "violation check", None)
             return False, reason
 
     return True, "All number rule validations passed"
@@ -256,16 +254,15 @@ def evaluate_boolean_rule(
         field_bool = field_value
 
         # Use the custom function to evaluate the rule
+        # If detects_violation returns True, it means the rule was violated (validation fails)
         try:
-            passed = rule.func(field_bool)
+            violation_detected = rule.detects_violation(field_bool)
         except Exception:
             # If function raises an exception, treat as failure
-            passed = False
+            violation_detected = True
 
-        if not passed:
-            reason = format_guardrail_error_message(
-                field_ref, "comparing function", None
-            )
+        if violation_detected:
+            reason = format_guardrail_error_message(field_ref, "violation check", None)
             return False, reason
 
     return True, "All boolean rule validations passed"
