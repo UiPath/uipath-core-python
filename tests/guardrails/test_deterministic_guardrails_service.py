@@ -50,7 +50,7 @@ class TestDeterministicGuardrailsService:
                         selector_type="specific",
                         fields=[FieldReference(path="age", source=FieldSource.INPUT)],
                     ),
-                    func=lambda n: n >= 21.0,
+                    detects_violation=lambda n: n < 21.0,
                 ),
                 BooleanRule(
                     rule_type="boolean",
@@ -60,7 +60,7 @@ class TestDeterministicGuardrailsService:
                             FieldReference(path="isActive", source=FieldSource.INPUT)
                         ],
                     ),
-                    func=lambda b: b is True,
+                    detects_violation=lambda b: b is not True,
                 ),
             ],
         )
@@ -80,7 +80,7 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is True
-        assert "All deterministic guardrail rules passed" in result.reason
+        assert result.reason == "All deterministic guardrail rules passed"
 
     def test_evaluate_post_deterministic_guardrail_validation_failed_age(
         self,
@@ -103,7 +103,7 @@ class TestDeterministicGuardrailsService:
                         selector_type="specific",
                         fields=[FieldReference(path="age", source=FieldSource.INPUT)],
                     ),
-                    func=lambda n: n >= 21.0,
+                    detects_violation=lambda n: n < 21.0,
                 ),
                 BooleanRule(
                     rule_type="boolean",
@@ -113,7 +113,7 @@ class TestDeterministicGuardrailsService:
                             FieldReference(path="isActive", source=FieldSource.INPUT)
                         ],
                     ),
-                    func=lambda b: b is True,
+                    detects_violation=lambda b: b is not True,
                 ),
             ],
         )
@@ -133,7 +133,10 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is False
-        assert "age" in result.reason.lower()
+        assert (
+            result.reason
+            == "Input data didn't match the guardrail condition: [age] comparing function [(n): n < 21.0]"
+        )
 
     def test_evaluate_post_deterministic_guardrail_validation_failed_is_active(
         self,
@@ -156,7 +159,7 @@ class TestDeterministicGuardrailsService:
                         selector_type="specific",
                         fields=[FieldReference(path="age", source=FieldSource.INPUT)],
                     ),
-                    func=lambda n: n >= 21.0,
+                    detects_violation=lambda n: n < 21.0,
                 ),
                 BooleanRule(
                     rule_type="boolean",
@@ -166,7 +169,7 @@ class TestDeterministicGuardrailsService:
                             FieldReference(path="isActive", source=FieldSource.INPUT)
                         ],
                     ),
-                    func=lambda b: b is True,
+                    detects_violation=lambda b: b is not True,
                 ),
             ],
         )
@@ -186,8 +189,10 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is False
-        assert "isActive" in result.reason or "isactive" in result.reason.lower()
-        assert "comparing function" in result.reason.lower()
+        assert (
+            result.reason
+            == "Input data didn't match the guardrail condition: [isActive] comparing function [(b): b is not True]"
+        )
 
     def test_evaluate_post_deterministic_guardrail_matches_regex_positive(
         self,
@@ -212,7 +217,7 @@ class TestDeterministicGuardrailsService:
                             FieldReference(path="userName", source=FieldSource.INPUT)
                         ],
                     ),
-                    func=lambda s: bool(re.search(".*te.*3.*", s)),
+                    detects_violation=lambda s: not bool(re.search(".*te.*3.*", s)),
                 ),
             ],
         )
@@ -230,7 +235,7 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is True
-        assert "All deterministic guardrail rules passed" in result.reason
+        assert result.reason == "All deterministic guardrail rules passed"
 
     def test_evaluate_post_deterministic_guardrail_matches_regex_negative(
         self,
@@ -255,7 +260,7 @@ class TestDeterministicGuardrailsService:
                             FieldReference(path="userName", source=FieldSource.INPUT)
                         ],
                     ),
-                    func=lambda s: bool(re.search(".*te.*3.*", s)),
+                    detects_violation=lambda s: not bool(re.search(".*te.*3.*", s)),
                 ),
             ],
         )
@@ -273,7 +278,10 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is False
-        assert "userName" in result.reason
+        assert (
+            result.reason
+            == 'Input data didn\'t match the guardrail condition: [userName] comparing function [(s): not bool(re.search(".*te.*3.*", s))]'
+        )
 
     def test_evaluate_post_deterministic_guardrail_word_func_positive(
         self,
@@ -298,7 +306,7 @@ class TestDeterministicGuardrailsService:
                             FieldReference(path="userName", source=FieldSource.INPUT)
                         ],
                     ),
-                    func=lambda s: len(s) > 5,
+                    detects_violation=lambda s: len(s) <= 5,
                 ),
             ],
         )
@@ -316,7 +324,7 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is True
-        assert "All deterministic guardrail rules passed" in result.reason
+        assert result.reason == "All deterministic guardrail rules passed"
 
     def test_evaluate_post_deterministic_guardrail_word_func_negative(
         self,
@@ -341,7 +349,7 @@ class TestDeterministicGuardrailsService:
                             FieldReference(path="userName", source=FieldSource.INPUT)
                         ],
                     ),
-                    func=lambda s: len(s) > 5,
+                    detects_violation=lambda s: len(s) <= 5,
                 ),
             ],
         )
@@ -359,6 +367,52 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is False
+
+    def test_evaluate_post_deterministic_guardrail_word_contains_substring_detects_violation(
+        self,
+        service: DeterministicGuardrailsService,
+    ) -> None:
+        """Test deterministic guardrail validation fails when string contains forbidden substring."""
+        deterministic_guardrail = DeterministicGuardrail(
+            id="test-deterministic-id",
+            name="Word Contains Guardrail",
+            description="Test word contains guardrail",
+            enabled_for_evals=True,
+            guardrail_type="custom",
+            selector=GuardrailSelector(
+                scopes=[GuardrailScope.TOOL], match_names=["test"]
+            ),
+            rules=[
+                WordRule(
+                    rule_type="word",
+                    field_selector=SpecificFieldsSelector(
+                        selector_type="specific",
+                        fields=[
+                            FieldReference(path="userName", source=FieldSource.INPUT)
+                        ],
+                    ),
+                    detects_violation=lambda s: "dre" in s,
+                ),
+            ],
+        )
+
+        # Input data with userName that contains "dre" - should fail
+        input_data = {
+            "userName": "andrei",
+        }
+        output_data: dict[str, Any] = {}
+
+        result = service.evaluate_post_deterministic_guardrail(
+            input_data=input_data,
+            output_data=output_data,
+            guardrail=deterministic_guardrail,
+        )
+
+        assert result.validation_passed is False
+        assert (
+            result.reason
+            == 'Input data didn\'t match the guardrail condition: [userName] comparing function [(s): "dre" in s]'
+        )
 
     def test_evaluate_post_deterministic_guardrail_number_func_positive(
         self,
@@ -381,7 +435,7 @@ class TestDeterministicGuardrailsService:
                         selector_type="specific",
                         fields=[FieldReference(path="age", source=FieldSource.INPUT)],
                     ),
-                    func=lambda n: n >= 18 and n <= 65,
+                    detects_violation=lambda n: n < 18 or n > 65,
                 ),
             ],
         )
@@ -399,7 +453,7 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is True
-        assert "All deterministic guardrail rules passed" in result.reason
+        assert result.reason == "All deterministic guardrail rules passed"
 
     def test_evaluate_post_deterministic_guardrail_number_func_negative(
         self,
@@ -422,7 +476,7 @@ class TestDeterministicGuardrailsService:
                         selector_type="specific",
                         fields=[FieldReference(path="age", source=FieldSource.INPUT)],
                     ),
-                    func=lambda n: n >= 18 and n <= 65,
+                    detects_violation=lambda n: n < 18 or n > 65,
                 ),
             ],
         )
@@ -678,7 +732,7 @@ class TestDeterministicGuardrailsService:
                 NumberRule(
                     rule_type="number",
                     field_selector=AllFieldsSelector(selector_type="all"),
-                    func=lambda n: n == 25.0,
+                    detects_violation=lambda n: n != 25.0,
                 ),
             ],
         )
@@ -720,7 +774,7 @@ class TestDeterministicGuardrailsService:
                 NumberRule(
                     rule_type="number",
                     field_selector=AllFieldsSelector(selector_type="all"),
-                    func=lambda n: n == 200.0,
+                    detects_violation=lambda n: n != 200.0,
                 ),
             ],
         )
@@ -898,7 +952,7 @@ class TestDeterministicGuardrailsService:
                         selector_type="specific",
                         fields=[FieldReference(path="age", source=FieldSource.INPUT)],
                     ),
-                    func=lambda n: n >= 21.0,
+                    detects_violation=lambda n: n < 21.0,
                 ),
                 BooleanRule(
                     rule_type="boolean",
@@ -908,7 +962,7 @@ class TestDeterministicGuardrailsService:
                             FieldReference(path="isActive", source=FieldSource.INPUT)
                         ],
                     ),
-                    func=lambda b: b is True,
+                    detects_violation=lambda b: b is not True,
                 ),
             ],
         )
@@ -931,7 +985,7 @@ class TestDeterministicGuardrailsService:
                         selector_type="specific",
                         fields=[FieldReference(path="age", source=FieldSource.INPUT)],
                     ),
-                    func=lambda n: n >= 21.0,
+                    detects_violation=lambda n: n < 21.0,
                 ),
                 NumberRule(
                     rule_type="number",
@@ -941,7 +995,7 @@ class TestDeterministicGuardrailsService:
                             FieldReference(path="status", source=FieldSource.OUTPUT)
                         ],
                     ),
-                    func=lambda n: n == 200.0,
+                    detects_violation=lambda n: n != 200.0,
                 ),
             ],
         )
@@ -964,7 +1018,7 @@ class TestDeterministicGuardrailsService:
                         selector_type="specific",
                         fields=[FieldReference(path="age", source=FieldSource.INPUT)],
                     ),
-                    func=lambda n: n >= 21.0,
+                    detects_violation=lambda n: n < 21.0,
                 ),
                 BooleanRule(
                     rule_type="boolean",
@@ -974,7 +1028,7 @@ class TestDeterministicGuardrailsService:
                             FieldReference(path="isActive", source=FieldSource.INPUT)
                         ],
                     ),
-                    func=lambda b: b is True,
+                    detects_violation=lambda b: b is not True,
                 ),
                 NumberRule(
                     rule_type="number",
@@ -984,7 +1038,7 @@ class TestDeterministicGuardrailsService:
                             FieldReference(path="status", source=FieldSource.OUTPUT)
                         ],
                     ),
-                    func=lambda n: n == 200.0,
+                    detects_violation=lambda n: n != 200.0,
                 ),
             ],
         )
@@ -1009,7 +1063,7 @@ class TestDeterministicGuardrailsService:
                         selector_type="specific",
                         fields=[FieldReference(path="age", source=FieldSource.INPUT)],
                     ),
-                    func=lambda n: n >= 21.0,
+                    detects_violation=lambda n: n < 21.0,
                 ),
                 BooleanRule(
                     rule_type="boolean",
@@ -1019,7 +1073,7 @@ class TestDeterministicGuardrailsService:
                             FieldReference(path="isActive", source=FieldSource.INPUT)
                         ],
                     ),
-                    func=lambda b: b is True,
+                    detects_violation=lambda b: b is not True,
                 ),
                 NumberRule(
                     rule_type="number",
@@ -1029,7 +1083,7 @@ class TestDeterministicGuardrailsService:
                             FieldReference(path="status", source=FieldSource.OUTPUT)
                         ],
                     ),
-                    func=lambda n: n == 200.0,
+                    detects_violation=lambda n: n != 200.0,
                 ),
             ],
         )

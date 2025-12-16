@@ -4,8 +4,9 @@ This module provides functions for evaluating different types of guardrail rules
 against input and output data.
 """
 
+import inspect
 from enum import IntEnum
-from typing import Any
+from typing import Any, Callable
 
 from .guardrails import (
     AllFieldsSelector,
@@ -163,7 +164,7 @@ def format_guardrail_error_message(
 ) -> str:
     """Format a guardrail error message following the standard pattern."""
     source = "Input" if field_ref.source == FieldSource.INPUT else "Output"
-    message = f"{source} data didn't match the guardrail condition: [{field_ref.path}] {operator}"
+    message = f"{source} data didn't match the guardrail condition: [{field_ref.path}] comparing function [{operator}]"
     if expected_value and expected_value.strip():
         message += f" [{expected_value.strip()}]"
     return message
@@ -187,16 +188,18 @@ def evaluate_word_rule(
         field_str = field_value
 
         # Use the custom function to evaluate the rule
+        # If detects_violation returns True, it means the rule was violated (validation fails)
         try:
-            passed = rule.func(field_str)
+            violation_detected = rule.detects_violation(field_str)
         except Exception:
             # If function raises an exception, treat as failure
-            passed = False
+            violation_detected = True
 
-        if not passed:
-            reason = format_guardrail_error_message(
-                field_ref, "comparing function", None
+        if violation_detected:
+            operator = (
+                _humanize_guardrail_func(rule.detects_violation) or "violation check"
             )
+            reason = format_guardrail_error_message(field_ref, operator, None)
             return False, reason
 
     return True, "All word rule validations passed"
@@ -221,16 +224,18 @@ def evaluate_number_rule(
         field_num = float(field_value)
 
         # Use the custom function to evaluate the rule
+        # If detects_violation returns True, it means the rule was violated (validation fails)
         try:
-            passed = rule.func(field_num)
+            violation_detected = rule.detects_violation(field_num)
         except Exception:
             # If function raises an exception, treat as failure
-            passed = False
+            violation_detected = True
 
-        if not passed:
-            reason = format_guardrail_error_message(
-                field_ref, "comparing function", None
+        if violation_detected:
+            operator = (
+                _humanize_guardrail_func(rule.detects_violation) or "violation check"
             )
+            reason = format_guardrail_error_message(field_ref, operator, None)
             return False, reason
 
     return True, "All number rule validations passed"
@@ -256,16 +261,18 @@ def evaluate_boolean_rule(
         field_bool = field_value
 
         # Use the custom function to evaluate the rule
+        # If detects_violation returns True, it means the rule was violated (validation fails)
         try:
-            passed = rule.func(field_bool)
+            violation_detected = rule.detects_violation(field_bool)
         except Exception:
             # If function raises an exception, treat as failure
-            passed = False
+            violation_detected = True
 
-        if not passed:
-            reason = format_guardrail_error_message(
-                field_ref, "comparing function", None
+        if violation_detected:
+            operator = (
+                _humanize_guardrail_func(rule.detects_violation) or "violation check"
             )
+            reason = format_guardrail_error_message(field_ref, operator, None)
             return False, reason
 
     return True, "All boolean rule validations passed"
@@ -307,3 +314,72 @@ def evaluate_universal_rule(
         return False, "Universal rule validation triggered (input and output)"
     else:
         return False, f"Unknown apply_to value: {rule.apply_to}"
+
+
+def _humanize_guardrail_func(func: Callable[..., Any] | str | None) -> str | None:
+    """Build a user-friendly description of a guardrail predicate.
+
+    Deterministic guardrails store Python callables (often lambdas) to evaluate
+    conditions. For diagnostics, it's useful to include a readable hint about the
+    predicate that failed.
+
+    Args:
+        func: A Python callable used as a predicate, or a pre-rendered string
+            description (for example, ``"s:str -> bool: contains 'test'"``).
+
+    Returns:
+        A human-readable description, or ``None`` if one cannot be produced.
+    """
+    if func is None:
+        return None
+
+    if isinstance(func, str):
+        rendered = func.strip()
+        return rendered or None
+
+    name = getattr(func, "__name__", None)
+    if name and name != "<lambda>":
+        return name
+
+    # Best-effort extraction for lambdas / callables.
+    try:
+        sig = str(inspect.signature(func))
+    except (TypeError, ValueError):
+        sig = ""
+
+    try:
+        source_lines = inspect.getsourcelines(func)
+        source = "".join(source_lines[0]).strip()
+        # Collapse whitespace to keep the message compact.
+        source = " ".join(source.split())
+
+        # Remove "detects_violation=lambda" prefix if present
+        # Pattern: "detects_violation=lambda s: condition" -> "condition"
+        if "detects_violation=lambda" in source:
+            # Find the lambda part
+            lambda_start = source.find("detects_violation=lambda")
+            if lambda_start != -1:
+                # Get everything after "detects_violation=lambda"
+                lambda_part = source[
+                    lambda_start + len("detects_violation=lambda") :
+                ].strip()
+                # Find the colon that separates param from body
+                colon_idx = lambda_part.find(":")
+                if colon_idx != -1:
+                    # Extract just the body (condition)
+                    body = lambda_part[colon_idx + 1 :].strip()
+                    # Remove trailing comma if present
+                    body = body.rstrip(",").strip()
+                    source = body
+    except (OSError, TypeError):
+        source = ""
+
+    if source and sig:
+        return f"{sig}: {source}"
+    if source:
+        return source
+    if sig:
+        return sig
+
+    rendered = repr(func).strip()
+    return rendered or None
