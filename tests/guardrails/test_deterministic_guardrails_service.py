@@ -80,7 +80,7 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is True
-        assert "All deterministic guardrail rules passed" in result.reason
+        assert result.reason == "All deterministic guardrail rules passed"
 
     def test_evaluate_post_deterministic_guardrail_validation_failed_age(
         self,
@@ -133,7 +133,10 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is False
-        assert "age" in result.reason.lower()
+        assert (
+            result.reason
+            == "Input data didn't match the guardrail condition: [age] comparing function [(n): n < 21.0]"
+        )
 
     def test_evaluate_post_deterministic_guardrail_validation_failed_is_active(
         self,
@@ -186,8 +189,10 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is False
-        assert "isActive" in result.reason or "isactive" in result.reason.lower()
-        assert "violation check" in result.reason.lower()
+        assert (
+            result.reason
+            == "Input data didn't match the guardrail condition: [isActive] comparing function [(b): b is not True]"
+        )
 
     def test_evaluate_post_deterministic_guardrail_matches_regex_positive(
         self,
@@ -230,7 +235,7 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is True
-        assert "All deterministic guardrail rules passed" in result.reason
+        assert result.reason == "All deterministic guardrail rules passed"
 
     def test_evaluate_post_deterministic_guardrail_matches_regex_negative(
         self,
@@ -273,7 +278,10 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is False
-        assert "userName" in result.reason
+        assert (
+            result.reason
+            == 'Input data didn\'t match the guardrail condition: [userName] comparing function [(s): not bool(re.search(".*te.*3.*", s))]'
+        )
 
     def test_evaluate_post_deterministic_guardrail_word_func_positive(
         self,
@@ -316,7 +324,7 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is True
-        assert "All deterministic guardrail rules passed" in result.reason
+        assert result.reason == "All deterministic guardrail rules passed"
 
     def test_evaluate_post_deterministic_guardrail_word_func_negative(
         self,
@@ -401,8 +409,10 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is False
-        assert "userName" in result.reason
-        assert "violation check" in result.reason.lower()
+        assert (
+            result.reason
+            == 'Input data didn\'t match the guardrail condition: [userName] comparing function [(s): "dre" in s]'
+        )
 
     def test_evaluate_post_deterministic_guardrail_number_func_positive(
         self,
@@ -443,7 +453,7 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is True
-        assert "All deterministic guardrail rules passed" in result.reason
+        assert result.reason == "All deterministic guardrail rules passed"
 
     def test_evaluate_post_deterministic_guardrail_number_func_negative(
         self,
