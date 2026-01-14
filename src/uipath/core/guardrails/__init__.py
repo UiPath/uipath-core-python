@@ -16,6 +16,7 @@ from .guardrails import (
     GuardrailScope,
     GuardrailSelector,
     GuardrailValidationResult,
+    GuardrailValidationResultType,
     NumberRule,
     Rule,
     SelectorType,
@@ -43,4 +44,5 @@ __all__ = [
     "GuardrailScope",
     "GuardrailSelector",
     "GuardrailValidationResult",
+    "GuardrailValidationResultType",
 ]

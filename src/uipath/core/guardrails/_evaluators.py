@@ -288,13 +288,13 @@ def evaluate_universal_rule(
 
     Universal rules trigger based on the apply_to scope and execution phase:
     - Pre-execution (empty output_data):
-      - INPUT: triggers (validation_passed = False)
-      - OUTPUT: does not trigger (validation_passed = True)
-      - INPUT_AND_OUTPUT: triggers (validation_passed = False)
+      - INPUT: triggers (result = VALIDATION_FAILED)
+      - OUTPUT: does not trigger (result = PASSED)
+      - INPUT_AND_OUTPUT: triggers (result = VALIDATION_FAILED)
     - Post-execution (output_data has data):
-      - INPUT: does not trigger (validation_passed = True)
-      - OUTPUT: triggers (validation_passed = False)
-      - INPUT_AND_OUTPUT: triggers (validation_passed = False)
+      - INPUT: does not trigger (result = PASSED)
+      - OUTPUT: triggers (result = VALIDATION_FAILED)
+      - INPUT_AND_OUTPUT: triggers (result = VALIDATION_FAILED)
     """
     # Determine if this is pre-execution (no output data) or post-execution
     is_pre_execution = not output_data or len(output_data) == 0

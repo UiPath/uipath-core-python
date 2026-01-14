@@ -16,6 +16,7 @@ from .guardrails import (
     DeterministicGuardrail,
     FieldSource,
     GuardrailValidationResult,
+    GuardrailValidationResultType,
     NumberRule,
     SpecificFieldsSelector,
     UniversalRule,
@@ -38,7 +39,7 @@ class DeterministicGuardrailsService(BaseModel):
         # Output rules will be evaluated during post-execution
         if has_output_rule:
             return GuardrailValidationResult(
-                validation_passed=True,
+                result=GuardrailValidationResultType.PASSED,
                 reason="Guardrail contains output-dependent rules that will be evaluated during post-execution",
             )
         return self._evaluate_deterministic_guardrail(
@@ -64,7 +65,7 @@ class DeterministicGuardrailsService(BaseModel):
         # Only input rules exist and they should have been evaluated during pre-execution
         if not has_output_rule:
             return GuardrailValidationResult(
-                validation_passed=True,
+                result=GuardrailValidationResultType.PASSED,
                 reason="Guardrail contains only input-dependent rules that were evaluated during pre-execution",
             )
 
@@ -128,15 +129,17 @@ class DeterministicGuardrailsService(BaseModel):
                 passed, reason = evaluate_universal_rule(rule, output_data)
             else:
                 return GuardrailValidationResult(
-                    validation_passed=False,
+                    result=GuardrailValidationResultType.VALIDATION_FAILED,
                     reason=f"Unknown rule type: {type(rule)}",
                 )
 
             if not passed:
                 return GuardrailValidationResult(
-                    validation_passed=False, reason=reason or "Rule validation failed"
+                    result=GuardrailValidationResultType.VALIDATION_FAILED,
+                    reason=reason or "Rule validation failed",
                 )
 
         return GuardrailValidationResult(
-            validation_passed=True, reason="All deterministic guardrail rules passed"
+            result=GuardrailValidationResultType.PASSED,
+            reason="All deterministic guardrail rules passed",
         )
