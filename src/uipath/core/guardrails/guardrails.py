@@ -59,6 +59,7 @@ class AllFieldsSelector(BaseModel):
     """All fields selector."""
 
     selector_type: Literal["all"] = Field(alias="$selectorType")
+    sources: list[FieldSource]
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 

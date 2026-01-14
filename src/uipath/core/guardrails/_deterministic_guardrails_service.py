@@ -10,10 +10,14 @@ from ._evaluators import (
     evaluate_word_rule,
 )
 from .guardrails import (
+    AllFieldsSelector,
+    ApplyTo,
     BooleanRule,
     DeterministicGuardrail,
+    FieldSource,
     GuardrailValidationResult,
     NumberRule,
+    SpecificFieldsSelector,
     UniversalRule,
     WordRule,
 )
@@ -27,6 +31,16 @@ class DeterministicGuardrailsService(BaseModel):
         guardrail: DeterministicGuardrail,
     ) -> GuardrailValidationResult:
         """Evaluate deterministic guardrail rules against input data (pre-execution)."""
+        # Check if guardrail contains any output-dependent rules
+        has_output_rule = self._has_output_dependent_rule(guardrail, [ApplyTo.OUTPUT])
+
+        # If guardrail has output-dependent rules, skip evaluation in pre-execution
+        # Output rules will be evaluated during post-execution
+        if has_output_rule:
+            return GuardrailValidationResult(
+                validation_passed=True,
+                reason="Guardrail contains output-dependent rules that will be evaluated during post-execution",
+            )
         return self._evaluate_deterministic_guardrail(
             input_data=input_data,
             output_data={},
@@ -41,11 +55,60 @@ class DeterministicGuardrailsService(BaseModel):
         guardrail: DeterministicGuardrail,
     ) -> GuardrailValidationResult:
         """Evaluate deterministic guardrail rules against input and output data."""
+        # Check if guardrail contains any output-dependent rules
+        has_output_rule = self._has_output_dependent_rule(
+            guardrail, [ApplyTo.OUTPUT, ApplyTo.INPUT_AND_OUTPUT]
+        )
+
+        # If guardrail has no output-dependent rules, skip post-execution evaluation
+        # Only input rules exist and they should have been evaluated during pre-execution
+        if not has_output_rule:
+            return GuardrailValidationResult(
+                validation_passed=True,
+                reason="Guardrail contains only input-dependent rules that were evaluated during pre-execution",
+            )
+
         return self._evaluate_deterministic_guardrail(
             input_data=input_data,
             output_data=output_data,
             guardrail=guardrail,
         )
+
+    @staticmethod
+    def _has_output_dependent_rule(
+        guardrail: DeterministicGuardrail,
+        universal_rules_apply_to_values: list[ApplyTo],
+    ) -> bool:
+        """Check if at least one rule EXCLUSIVELY requires output data.
+
+        Args:
+            guardrail: The guardrail to check
+            universal_rules_apply_to_values: List of ApplyTo values to consider as output-dependent for UniversalRules.
+
+        Returns:
+            True if at least one rule exclusively depends on output data, False otherwise.
+        """
+        for rule in guardrail.rules:
+            # UniversalRule: only return True if it applies to values in universal_rules_apply_to_values
+            if isinstance(rule, UniversalRule):
+                if rule.apply_to in universal_rules_apply_to_values:
+                    return True
+            # Rules with field_selector
+            elif isinstance(rule, (WordRule, NumberRule, BooleanRule)):
+                field_selector = rule.field_selector
+                # AllFieldsSelector applies to both input and output, not exclusively output
+                # SpecificFieldsSelector: only return True if at least one field has OUTPUT source
+                if isinstance(field_selector, SpecificFieldsSelector):
+                    if field_selector.fields and any(
+                        field.source == FieldSource.OUTPUT
+                        for field in field_selector.fields
+                    ):
+                        return True
+                elif isinstance(field_selector, AllFieldsSelector):
+                    if FieldSource.OUTPUT in field_selector.sources:
+                        return True
+
+        return False
 
     @staticmethod
     def _evaluate_deterministic_guardrail(
