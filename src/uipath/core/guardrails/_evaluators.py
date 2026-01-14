@@ -120,23 +120,25 @@ def get_fields_from_selector(
     fields: list[tuple[Any, FieldReference]] = []
 
     if isinstance(field_selector, AllFieldsSelector):
-        # For "all" selector, we need to collect all fields from both input and output
+        # For "all" selector, we need to collect all fields from the specified sources
         # This is a simplified implementation - in practice, you might want to
         # recursively collect all nested fields
-        for key, value in input_data.items():
-            fields.append(
-                (
-                    value,
-                    FieldReference(path=key, source=FieldSource.INPUT),
+        if FieldSource.INPUT in field_selector.sources:
+            for key, value in input_data.items():
+                fields.append(
+                    (
+                        value,
+                        FieldReference(path=key, source=FieldSource.INPUT),
+                    )
                 )
-            )
-        for key, value in output_data.items():
-            fields.append(
-                (
-                    value,
-                    FieldReference(path=key, source=FieldSource.OUTPUT),
+        if FieldSource.OUTPUT in field_selector.sources:
+            for key, value in output_data.items():
+                fields.append(
+                    (
+                        value,
+                        FieldReference(path=key, source=FieldSource.OUTPUT),
+                    )
                 )
-            )
     elif isinstance(field_selector, SpecificFieldsSelector):
         # For specific fields, extract values based on field references
         for field_ref in field_selector.fields:

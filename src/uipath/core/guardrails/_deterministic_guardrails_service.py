@@ -31,14 +31,15 @@ class DeterministicGuardrailsService(BaseModel):
         guardrail: DeterministicGuardrail,
     ) -> GuardrailValidationResult:
         """Evaluate deterministic guardrail rules against input data (pre-execution)."""
-        # Check if at least one rule requires output data
-        has_output_rule = self._has_output_dependent_rule(guardrail)
+        # Check if guardrail contains any output-dependent rules
+        has_output_rule = self._has_output_dependent_rule(guardrail, [ApplyTo.OUTPUT])
 
-        # If guardrail has no output rules and no universal rules, skip evaluation and pass
+        # If guardrail has output-dependent rules, skip evaluation in pre-execution
+        # Output rules will be evaluated during post-execution
         if has_output_rule:
             return GuardrailValidationResult(
                 validation_passed=True,
-                reason="All deterministic guardrail rules passed",
+                reason="Guardrail contains output-dependent rules that will be evaluated during post-execution",
             )
         return self._evaluate_deterministic_guardrail(
             input_data=input_data,
@@ -54,14 +55,17 @@ class DeterministicGuardrailsService(BaseModel):
         guardrail: DeterministicGuardrail,
     ) -> GuardrailValidationResult:
         """Evaluate deterministic guardrail rules against input and output data."""
-        # Check if at least one rule requires output data
-        has_output_rule = self._has_output_dependent_rule(guardrail)
+        # Check if guardrail contains any output-dependent rules
+        has_output_rule = self._has_output_dependent_rule(
+            guardrail, [ApplyTo.OUTPUT, ApplyTo.INPUT_AND_OUTPUT]
+        )
 
-        # If guardrail has no output rules and no universal rules, skip evaluation and pass
+        # If guardrail has no output-dependent rules, skip post-execution evaluation
+        # Only input rules exist and they should have been evaluated during pre-execution
         if not has_output_rule:
             return GuardrailValidationResult(
                 validation_passed=True,
-                reason="All deterministic guardrail rules passed",
+                reason="Guardrail contains only input-dependent rules that were evaluated during pre-execution",
             )
 
         return self._evaluate_deterministic_guardrail(
@@ -71,16 +75,23 @@ class DeterministicGuardrailsService(BaseModel):
         )
 
     @staticmethod
-    def _has_output_dependent_rule(guardrail: DeterministicGuardrail) -> bool:
+    def _has_output_dependent_rule(
+        guardrail: DeterministicGuardrail,
+        universal_rules_apply_to_values: list[ApplyTo],
+    ) -> bool:
         """Check if at least one rule EXCLUSIVELY requires output data.
+
+        Args:
+            guardrail: The guardrail to check
+            universal_rules_apply_to_values: List of ApplyTo values to consider as output-dependent for UniversalRules.
 
         Returns:
             True if at least one rule exclusively depends on output data, False otherwise.
         """
         for rule in guardrail.rules:
-            # UniversalRule: only return True if it applies to OUTPUT or INPUT_AND_OUTPUT
+            # UniversalRule: only return True if it applies to values in universal_rules_apply_to_values
             if isinstance(rule, UniversalRule):
-                if rule.apply_to in (ApplyTo.OUTPUT, ApplyTo.INPUT_AND_OUTPUT):
+                if rule.apply_to in universal_rules_apply_to_values:
                     return True
             # Rules with field_selector
             elif isinstance(rule, (WordRule, NumberRule, BooleanRule)):
@@ -94,7 +105,7 @@ class DeterministicGuardrailsService(BaseModel):
                     ):
                         return True
                 elif isinstance(field_selector, AllFieldsSelector):
-                    if field_selector.source == FieldSource.OUTPUT:
+                    if FieldSource.OUTPUT in field_selector.sources:
                         return True
 
         return False

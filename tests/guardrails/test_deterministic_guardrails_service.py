@@ -80,7 +80,10 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is True
-        assert result.reason == "All deterministic guardrail rules passed"
+        assert (
+            result.reason
+            == "Guardrail contains only input-dependent rules that were evaluated during pre-execution"
+        )
 
     def test_evaluate_post_deterministic_guardrail_validation_failed_age(
         self,
@@ -257,7 +260,10 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is True
-        assert result.reason == "All deterministic guardrail rules passed"
+        assert (
+            result.reason
+            == "Guardrail contains only input-dependent rules that were evaluated during pre-execution"
+        )
 
     def test_evaluate_post_deterministic_guardrail_matches_regex_negative(
         self,
@@ -358,7 +364,10 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is True
-        assert result.reason == "All deterministic guardrail rules passed"
+        assert (
+            result.reason
+            == "Guardrail contains only input-dependent rules that were evaluated during pre-execution"
+        )
 
     def test_evaluate_post_deterministic_guardrail_word_func_negative(
         self,
@@ -511,7 +520,10 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is True
-        assert result.reason == "All deterministic guardrail rules passed"
+        assert (
+            result.reason
+            == "Guardrail contains only input-dependent rules that were evaluated during pre-execution"
+        )
 
     def test_evaluate_post_deterministic_guardrail_number_func_negative(
         self,
@@ -804,7 +816,7 @@ class TestDeterministicGuardrailsService:
                 NumberRule(
                     rule_type="number",
                     field_selector=AllFieldsSelector(
-                        selector_type="all", source=FieldSource.OUTPUT
+                        selector_type="all", sources=[FieldSource.OUTPUT]
                     ),
                     detects_violation=lambda n: n != 25.0,
                 ),
@@ -848,7 +860,7 @@ class TestDeterministicGuardrailsService:
                 NumberRule(
                     rule_type="number",
                     field_selector=AllFieldsSelector(
-                        selector_type="all", source=FieldSource.INPUT
+                        selector_type="all", sources=[FieldSource.INPUT]
                     ),
                     detects_violation=lambda n: n != 200.0,
                 ),
@@ -1215,7 +1227,10 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is True
-        assert result.reason == "All deterministic guardrail rules passed"
+        assert (
+            result.reason
+            == "Guardrail contains only input-dependent rules that were evaluated during pre-execution"
+        )
 
     def test_evaluate_post_deterministic_guardrail_only_output_rules_passes(
         self,
@@ -1356,7 +1371,10 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.validation_passed is True
-        assert result.reason == "All deterministic guardrail rules passed"
+        assert (
+            result.reason
+            == "Guardrail contains only input-dependent rules that were evaluated during pre-execution"
+        )
 
     def test_evaluate_pre_deterministic_guardrail_with_input_and_output_rules_input_true(
         self,
