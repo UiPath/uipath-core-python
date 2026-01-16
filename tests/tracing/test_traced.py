@@ -816,3 +816,161 @@ async def test_non_recording_traced_async_generator_function(setup_tracer):
     spans = exporter.get_exported_spans()
 
     assert len(spans) == 0
+
+
+# --------- Suppress Instrumentation Tests ---------
+
+
+def test_suppress_instrumentation_sync_function(setup_tracer):
+    """Test that suppress_instrumentation prevents spans from being created for sync functions."""
+    from opentelemetry.instrumentation.utils import suppress_instrumentation
+
+    exporter, provider = setup_tracer
+
+    @traced()
+    def sample_function(x, y):
+        return x + y
+
+    # Call without suppression - should create span
+    result = sample_function(2, 3)
+    assert result == 5
+
+    spans = exporter.get_exported_spans()
+    assert len(spans) == 1
+
+    exporter.clear_exported_spans()
+
+    # Call with suppression - should NOT create span
+    with suppress_instrumentation():
+        result = sample_function(4, 5)
+        assert result == 9
+
+    provider.shutdown()
+    spans = exporter.get_exported_spans()
+    assert len(spans) == 0
+
+
+@pytest.mark.asyncio
+async def test_suppress_instrumentation_async_function(setup_tracer):
+    """Test that suppress_instrumentation prevents spans from being created for async functions."""
+    from opentelemetry.instrumentation.utils import suppress_instrumentation
+
+    exporter, provider = setup_tracer
+
+    @traced()
+    async def sample_async_function(x, y):
+        return x * y
+
+    # Call without suppression - should create span
+    result = await sample_async_function(2, 3)
+    assert result == 6
+
+    await sleep(0.1)
+    spans = exporter.get_exported_spans()
+    assert len(spans) == 1
+
+    exporter.clear_exported_spans()
+
+    # Call with suppression - should NOT create span
+    with suppress_instrumentation():
+        result = await sample_async_function(4, 5)
+        assert result == 20
+
+    provider.shutdown()
+    await sleep(0.1)
+    spans = exporter.get_exported_spans()
+    assert len(spans) == 0
+
+
+def test_suppress_instrumentation_generator_function(setup_tracer):
+    """Test that suppress_instrumentation prevents spans from being created for generator functions."""
+    from opentelemetry.instrumentation.utils import suppress_instrumentation
+
+    exporter, provider = setup_tracer
+
+    @traced()
+    def sample_generator_function(n):
+        for i in range(n):
+            yield i
+
+    # Call without suppression - should create span
+    results = list(sample_generator_function(3))
+    assert results == [0, 1, 2]
+
+    spans = exporter.get_exported_spans()
+    assert len(spans) == 1
+
+    exporter.clear_exported_spans()
+
+    # Call with suppression - should NOT create span
+    with suppress_instrumentation():
+        results = list(sample_generator_function(4))
+        assert results == [0, 1, 2, 3]
+
+    provider.shutdown()
+    spans = exporter.get_exported_spans()
+    assert len(spans) == 0
+
+
+@pytest.mark.asyncio
+async def test_suppress_instrumentation_async_generator_function(setup_tracer):
+    """Test that suppress_instrumentation prevents spans from being created for async generator functions."""
+    from opentelemetry.instrumentation.utils import suppress_instrumentation
+
+    exporter, provider = setup_tracer
+
+    @traced()
+    async def sample_async_generator_function(n):
+        for i in range(n):
+            yield i
+
+    # Call without suppression - should create span
+    results = [item async for item in sample_async_generator_function(3)]
+    assert results == [0, 1, 2]
+
+    spans = exporter.get_exported_spans()
+    assert len(spans) == 1
+
+    exporter.clear_exported_spans()
+
+    # Call with suppression - should NOT create span
+    with suppress_instrumentation():
+        results = [item async for item in sample_async_generator_function(4)]
+        assert results == [0, 1, 2, 3]
+
+    provider.shutdown()
+    spans = exporter.get_exported_spans()
+    assert len(spans) == 0
+
+
+def test_suppress_instrumentation_nested_functions(setup_tracer):
+    """Test that suppress_instrumentation prevents spans for nested traced function calls."""
+    from opentelemetry.instrumentation.utils import suppress_instrumentation
+
+    exporter, provider = setup_tracer
+
+    @traced()
+    def inner_function(x):
+        return x * 2
+
+    @traced()
+    def outer_function(x):
+        return inner_function(x) + 1
+
+    # Call without suppression - should create 2 spans
+    result = outer_function(5)
+    assert result == 11
+
+    spans = exporter.get_exported_spans()
+    assert len(spans) == 2
+
+    exporter.clear_exported_spans()
+
+    # Call with suppression - should NOT create any spans
+    with suppress_instrumentation():
+        result = outer_function(10)
+        assert result == 21
+
+    provider.shutdown()
+    spans = exporter.get_exported_spans()
+    assert len(spans) == 0
