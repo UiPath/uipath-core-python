@@ -6,7 +6,9 @@ import random
 from functools import wraps
 from typing import Any, Callable, Optional
 
+from opentelemetry import context as context_api
 from opentelemetry import trace
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 from opentelemetry.trace.status import StatusCode
 
@@ -78,6 +80,8 @@ def _opentelemetry_traced(
         # --------- Sync wrapper ---------
         @wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+            if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                return func(*args, **kwargs)
             span_cm, span = get_span()
             try:
                 # Set input attributes BEFORE execution
@@ -113,6 +117,8 @@ def _opentelemetry_traced(
         # --------- Async wrapper ---------
         @wraps(func)
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                return await func(*args, **kwargs)
             span_cm, span = get_span()
             try:
                 # Set input attributes BEFORE execution
@@ -148,6 +154,10 @@ def _opentelemetry_traced(
         # --------- Generator wrapper ---------
         @wraps(func)
         def generator_wrapper(*args: Any, **kwargs: Any) -> Any:
+            if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                for item in func(*args, **kwargs):
+                    yield item
+                return
             span_cm, span = get_span()
             try:
                 # Set input attributes BEFORE execution
@@ -186,6 +196,10 @@ def _opentelemetry_traced(
         # --------- Async generator wrapper ---------
         @wraps(func)
         async def async_generator_wrapper(*args: Any, **kwargs: Any) -> Any:
+            if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                async for item in func(*args, **kwargs):
+                    yield item
+                return
             span_cm, span = get_span()
             try:
                 # Set input attributes BEFORE execution
