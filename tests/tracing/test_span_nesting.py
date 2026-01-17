@@ -296,3 +296,355 @@ def test_non_recording_blocks_children(span_capture: SpanCapture):
     )
 
     span_capture.print_hierarchy()
+
+
+def test_nested_non_recording_parents_with_external_span(span_capture: SpanCapture):
+    """Test nested non-recording parents maintain hierarchy with external span provider.
+
+    Scenario:
+    1. External system (like LangGraph) creates a span manually
+    2. Inside, @traced(recording=False) creates non-recording parent 1
+    3. Inside that, @traced(recording=False) creates non-recording parent 2
+    4. Inside that, @traced(recording=True) creates recording child
+
+    Validates that the hierarchy is preserved:
+    - non-recording parent 1 should have external_span as parent
+    - non-recording parent 2 should have non-recording parent 1 as parent
+    - Recording child should recognize non-recording parent 2 as the deeper parent
+    """
+    from opentelemetry import trace
+
+    from uipath.core.tracing.decorators import traced
+    from uipath.core.tracing.span_utils import UiPathSpanUtils, _span_registry
+
+    # Simulate external system (like LangGraph) creating a span manually
+    external_tracer = trace.get_tracer("external_system")
+    with external_tracer.start_as_current_span("external_span") as external_span:
+        stored_external_span = external_span
+
+        # Register this as the external span provider
+        UiPathSpanUtils.register_current_span_provider(lambda: stored_external_span)
+
+        try:
+
+            @traced(name="non_recording_parent_1", recording=False)
+            def non_recording_parent_1():
+                return non_recording_parent_2()
+
+            @traced(name="non_recording_parent_2", recording=False)
+            def non_recording_parent_2():
+                return recording_child()
+
+            @traced(name="recording_child", recording=True)
+            def recording_child():
+                return "child_result"
+
+            result = non_recording_parent_1()
+            assert result == "child_result"
+
+            external_span_id = stored_external_span.get_span_context().span_id
+        finally:
+            UiPathSpanUtils.register_current_span_provider(None)
+
+    spans = span_capture.get_spans()
+
+    # Should have: external_span only (non-recording spans aren't recorded)
+    external_span_recorded = next((s for s in spans if s.name == "external_span"), None)
+    assert external_span_recorded is not None, "external_span should be recorded"
+
+    # Find non-recording parents in SpanRegistry
+    non_recording_parent_1_id = None
+    non_recording_parent_2_id = None
+
+    for span_id, parent_id in _span_registry._parent_map.items():
+        stored_span = _span_registry.get_span(span_id)
+        if stored_span is not None:
+            # Find parent 1 (direct child of external_span)
+            if parent_id == external_span_id:
+                non_recording_parent_1_id = span_id
+            # Find parent 2 (child of parent 1)
+            elif (
+                parent_id == non_recording_parent_1_id
+                and non_recording_parent_1_id is not None
+            ):
+                non_recording_parent_2_id = span_id
+
+    assert non_recording_parent_1_id is not None, (
+        "BUG: non_recording_parent_1 should be registered in SpanRegistry "
+        "with external_span as its parent"
+    )
+    assert non_recording_parent_2_id is not None, (
+        "BUG: non_recording_parent_2 should be registered in SpanRegistry "
+        "with non_recording_parent_1 as its parent"
+    )
+
+    # Verify the hierarchy and depths
+    parent_1_parent = _span_registry.get_parent_id(non_recording_parent_1_id)
+    parent_2_parent = _span_registry.get_parent_id(non_recording_parent_2_id)
+
+    assert parent_1_parent == external_span_id, (
+        f"non_recording_parent_1 should have external_span as parent, "
+        f"got {parent_1_parent}"
+    )
+    assert parent_2_parent == non_recording_parent_1_id, (
+        f"non_recording_parent_2 should have non_recording_parent_1 as parent, "
+        f"got {parent_2_parent}"
+    )
+
+    # Verify depths: external=0, parent_1=1, parent_2=2
+    external_depth = _span_registry.calculate_depth(external_span_id)
+    parent_1_depth = _span_registry.calculate_depth(non_recording_parent_1_id)
+    parent_2_depth = _span_registry.calculate_depth(non_recording_parent_2_id)
+
+    assert external_depth == 0, (
+        f"External span should have depth 0, got {external_depth}"
+    )
+    assert parent_1_depth == 1, (
+        f"non_recording_parent_1 should have depth 1 (parent=external), got {parent_1_depth}"
+    )
+    assert parent_2_depth == 2, (
+        f"non_recording_parent_2 should have depth 2 (parent=parent_1), got {parent_2_depth}"
+    )
+
+    # Verify the fix: _get_bottom_most_span should recognize parent 2 as deepest
+    # This simulates what child calls get_parent_context()
+    current_span_mock = _span_registry.get_span(non_recording_parent_2_id)
+    external_span_mock = external_span_recorded
+
+    if current_span_mock is not None:
+        bottom_span = UiPathSpanUtils._get_bottom_most_span(
+            current_span_mock, external_span_mock
+        )
+        assert bottom_span.get_span_context().span_id == non_recording_parent_2_id, (
+            "BUG: _get_bottom_most_span should return non_recording_parent_2 (deepest), "
+            f"but returned {bottom_span.get_span_context().span_id}"
+        )
+
+    _span_registry.clear()
+    span_capture.print_hierarchy()
+
+
+def test_non_recording_parent_picks_external_when_outside_context(
+    span_capture: SpanCapture,
+):
+    """Test that non-recording parent correctly picks external span when called outside OTel context.
+
+    Scenario:
+    1. External span provider is registered and stored
+    2. Exit the OTel context (so trace.get_current_span() returns default/invalid)
+    3. @traced(recording=False) is called OUTSIDE the context
+
+    The test: Non-recording parent should have the external span as parent.
+
+    This test fails with: parent_context = trace.get_current_span().get_span_context()
+    Because outside the context, trace.get_current_span() returns a default NonRecordingSpan,
+    not the external span we want.
+
+    This test passes with: parent_context from get_parent_context() logic
+    Because get_parent_context() checks both current (invalid) and external (valid),
+    and picks the external one.
+    """
+    from opentelemetry import trace
+
+    from uipath.core.tracing.decorators import traced
+    from uipath.core.tracing.span_utils import UiPathSpanUtils, _span_registry
+
+    # Create external span INSIDE a context
+    external_tracer = trace.get_tracer("external_system")
+    external_span_cm = external_tracer.start_as_current_span("external_span")
+    external_span = external_span_cm.__enter__()
+    external_span_id = external_span.get_span_context().span_id
+
+    # Store and register the external span
+    stored_external_span = external_span
+    UiPathSpanUtils.register_current_span_provider(lambda: stored_external_span)
+
+    # Exit the OTel context manager
+    external_span_cm.__exit__(None, None, None)
+
+    # NOW we're OUTSIDE the context - trace.get_current_span() returns default/invalid
+    # But the external provider is still active
+
+    try:
+
+        @traced(name="non_recording_parent", recording=False)
+        def non_recording_parent():
+            return "result"
+
+        result = non_recording_parent()
+        assert result == "result"
+
+        # The non-recording parent should have the external span as parent
+        # NOT the invalid span from trace.get_current_span()
+        non_recording_parent_id = None
+        for span_id, parent_id in _span_registry._parent_map.items():
+            if parent_id == external_span_id:
+                stored_span = _span_registry.get_span(span_id)
+                if stored_span is not None:
+                    non_recording_parent_id = span_id
+                    break
+
+        assert non_recording_parent_id is not None, (
+            "Non-recording parent should be parented to external_span. "
+            "With trace.get_current_span() directly, it would pick an invalid/default span instead."
+        )
+
+        # Verify hierarchy
+        non_recording_depth = _span_registry.calculate_depth(non_recording_parent_id)
+        external_depth = _span_registry.calculate_depth(external_span_id)
+
+        assert external_depth == 0, (
+            f"External span should have depth 0, got {external_depth}"
+        )
+        assert non_recording_depth == 1, (
+            f"Non-recording parent should have depth 1 (parent=external), got {non_recording_depth}"
+        )
+
+        _span_registry.clear()
+    finally:
+        UiPathSpanUtils.register_current_span_provider(None)
+
+
+def test_ctx_parameter_required_when_external_deeper_than_current(
+    span_capture: SpanCapture,
+):
+    """Test that trace.get_current_span(ctx) is required when external span is deeper.
+
+    Scenario:
+    1. Create an external span (depth 0)
+    2. Create a deeper nested external span (depth 1) - this becomes current external
+    3. Create an OTel span INSIDE the deepest external context
+    4. Register the deepest external span as the external provider
+    5. Create a non-recording span
+
+    Expected behavior with trace.get_current_span(ctx):
+    - get_parent_context() compares: current OTel span vs external span
+    - External span is deeper (depth 1), so it's chosen
+    - trace.get_current_span(ctx) gets the external span from ctx
+    - Non-recording span is parented to external
+
+    Bug with trace.get_current_span() without ctx:
+    - trace.get_current_span() (no args) returns the OTel span (from thread-local)
+    - Non-recording span gets parented to OTel span (wrong!)
+
+    This test PASSES with the fix (ctx parameter) and FAILS without it.
+    """
+    from opentelemetry import trace
+
+    from uipath.core.tracing.decorators import traced
+    from uipath.core.tracing.span_utils import UiPathSpanUtils, _span_registry
+
+    # Step 1: Create external span hierarchy
+    external_tracer = trace.get_tracer("external_system")
+
+    # Create external_root (depth 0)
+    external_root_cm = external_tracer.start_as_current_span("external_root")
+    external_root = external_root_cm.__enter__()
+    external_root_id = external_root.get_span_context().span_id
+
+    # Create external_deep (depth 1) - child of external_root
+    external_deep_cm = external_tracer.start_as_current_span("external_deep")
+    external_deep = external_deep_cm.__enter__()
+    external_deep_id = external_deep.get_span_context().span_id
+
+    # Register external_deep as the external provider BEFORE exiting context
+    UiPathSpanUtils.register_current_span_provider(lambda: external_deep)
+
+    # Exit the external context to create a separate branch
+    external_deep_cm.__exit__(None, None, None)
+    external_root_cm.__exit__(None, None, None)
+
+    # NOW create OTel span in a SEPARATE context (not inside external_deep)
+    otel_tracer = trace.get_tracer(__name__)
+    otel_span_cm = otel_tracer.start_as_current_span("otel_span")
+    otel_span = otel_span_cm.__enter__()
+    otel_span_id = otel_span.get_span_context().span_id
+
+    try:
+        from uipath.core.tracing.span_utils import ParentedNonRecordingSpan
+
+        # Register external spans with parent relationship
+        _span_registry.register_span(external_root)
+        _span_registry.register_span(external_deep)
+
+        # Register OTel span as ParentedNonRecordingSpan with NO parent
+        # (This simulates OTel span in a separate branch)
+        otel_span_context = otel_span.get_span_context()
+        otel_span_tracked = ParentedNonRecordingSpan(otel_span_context, parent=None)
+        _span_registry.register_span(otel_span_tracked)
+
+        # Verify depths
+        external_root_depth = _span_registry.calculate_depth(external_root_id)
+        external_deep_depth = _span_registry.calculate_depth(external_deep_id)
+        otel_depth = _span_registry.calculate_depth(otel_span_id)
+
+        assert external_root_depth == 0, (
+            f"External root depth should be 0, got {external_root_depth}"
+        )
+        assert external_deep_depth == 1, (
+            f"External deep depth should be 1, got {external_deep_depth}"
+        )
+        assert otel_depth == 0, (
+            f"OTel span depth should be 0 (no parent), got {otel_depth}"
+        )
+
+        # Verify external_deep is deeper than otel_span
+        assert external_deep_depth > otel_depth, (
+            "External deep should be deeper than otel span"
+        )
+
+        # Create non-recording span INSIDE the otel_span context
+        @traced(name="non_recording_inside_otel", recording=False)
+        def non_recording_func():
+            # Add a recording child inside the non-recording parent
+            return recording_child_func()
+
+        @traced(name="recording_child_of_non_recording", recording=True)
+        def recording_child_func():
+            return "child_result"
+
+        result = non_recording_func()
+        assert result == "child_result"
+
+        # Get all spans captured
+        captured_spans = span_capture.get_spans()
+
+        # Verify that neither non-recording nor its recording child are in the captured spans
+        # (because the parent was non-recording, children should not be recorded per ParentBased sampler)
+        captured_span_names = [s.name for s in captured_spans]
+        assert "non_recording_inside_otel" not in captured_span_names, (
+            "Non-recording span should not be captured in span_capture"
+        )
+        assert "recording_child_of_non_recording" not in captured_span_names, (
+            "Recording child of non-recording parent should not be captured due to ParentBased sampler"
+        )
+
+        # Step 2: Verify the non-recording span was parented to external_deep (deeper)
+        # NOT to otel_span (which is current in thread-local context)
+        non_recording_id = None
+        for span_id, parent_id in _span_registry._parent_map.items():
+            stored_span = _span_registry.get_span(span_id)
+            if stored_span is not None and parent_id == external_deep_id:
+                non_recording_id = span_id
+                break
+
+        assert non_recording_id is not None, (
+            "CRITICAL: Non-recording span should be parented to external_deep (deeper). "
+            "This requires using trace.get_current_span(ctx) NOT trace.get_current_span(). "
+            "With trace.get_current_span() alone, it would pick the OTel span "
+            "(which is current in thread-local context), not the external span."
+        )
+
+        # Verify it's NOT parented to the OTel span
+        for _span_id, parent_id in _span_registry._parent_map.items():
+            if parent_id == otel_span_id:
+                raise AssertionError(
+                    "Non-recording span should NOT be parented to otel_span. "
+                    "This indicates trace.get_current_span() was used instead of trace.get_current_span(ctx)."
+                )
+
+        _span_registry.clear()
+
+    finally:
+        otel_span_cm.__exit__(None, None, None)
+        UiPathSpanUtils.register_current_span_provider(None)

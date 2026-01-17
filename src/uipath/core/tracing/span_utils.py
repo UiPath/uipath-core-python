@@ -4,9 +4,31 @@ import logging
 from typing import Callable, Optional
 
 from opentelemetry import context, trace
-from opentelemetry.trace import Span, set_span_in_context
+from opentelemetry.trace import NonRecordingSpan, Span, set_span_in_context
 
 logger = logging.getLogger(__name__)
+
+
+class ParentedNonRecordingSpan(NonRecordingSpan):
+    """Non-recording span with explicit parent tracking.
+
+    Extends NonRecordingSpan to include a parent attribute, allowing the SpanRegistry
+    to properly track parent-child relationships for non-recording spans.
+    This is necessary because NonRecordingSpan instances created directly don't have
+    their parent automatically set like normal recording spans do.
+    """
+
+    def __init__(
+        self, context: trace.SpanContext, parent: Optional[trace.SpanContext] = None
+    ):
+        """Initialize a parented non-recording span.
+
+        Args:
+            context: The SpanContext for this span
+            parent: Optional parent SpanContext
+        """
+        super().__init__(context)
+        self.parent = parent
 
 
 class SpanRegistry:
@@ -309,4 +331,4 @@ class UiPathSpanUtils:
         return UiPathSpanUtils._current_span_ancestors_provider
 
 
-__all__ = ["UiPathSpanUtils"]
+__all__ = ["ParentedNonRecordingSpan", "UiPathSpanUtils"]
