@@ -9,7 +9,7 @@ from typing import Any, Callable, Optional
 from opentelemetry import context as context_api
 from opentelemetry import trace
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
+from opentelemetry.trace import SpanContext, TraceFlags
 from opentelemetry.trace.status import StatusCode
 
 from uipath.core.tracing._utils import (
@@ -17,7 +17,11 @@ from uipath.core.tracing._utils import (
     set_span_input_attributes,
     set_span_output_attributes,
 )
-from uipath.core.tracing.span_utils import UiPathSpanUtils
+from uipath.core.tracing.span_utils import (
+    ParentedNonRecordingSpan,
+    UiPathSpanUtils,
+    _span_registry,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +54,10 @@ def _opentelemetry_traced(
         trace_name = name or func.__name__
 
         def get_span():
+            ctx = UiPathSpanUtils.get_parent_context()
             if not recording:
+                parent_context = trace.get_current_span(ctx).get_span_context()
+
                 # Create a valid but non-sampled trace context
                 # Generate a valid trace ID (not INVALID)
                 trace_id = random.getrandbits(128)
@@ -62,20 +69,24 @@ def _opentelemetry_traced(
                     is_remote=False,
                     trace_flags=TraceFlags(0x00),  # NOT sampled
                 )
-                non_recording = NonRecordingSpan(non_sampled_context)
+                non_recording = ParentedNonRecordingSpan(
+                    non_sampled_context, parent=parent_context
+                )
 
                 # Make it active so children see it
                 span_cm = trace.use_span(non_recording)
                 span_cm.__enter__()
-                return span_cm, non_recording
 
-            # Normal recording span
-            ctx = UiPathSpanUtils.get_parent_context()
-            span_cm = trace.get_tracer(__name__).start_as_current_span(
-                trace_name, context=ctx
-            )
-            span = span_cm.__enter__()
-            return span_cm, span
+                _span_registry.register_span(non_recording)
+
+                return span_cm, non_recording
+            else:
+                # Normal recording span
+                span_cm = trace.get_tracer(__name__).start_as_current_span(
+                    trace_name, context=ctx
+                )
+                span = span_cm.__enter__()
+                return span_cm, span
 
         # --------- Sync wrapper ---------
         @wraps(func)
