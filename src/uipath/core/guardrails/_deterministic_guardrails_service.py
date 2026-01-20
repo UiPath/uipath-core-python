@@ -40,7 +40,7 @@ class DeterministicGuardrailsService(BaseModel):
         if has_output_rule:
             return GuardrailValidationResult(
                 result=GuardrailValidationResultType.PASSED,
-                reason="Guardrail contains output-dependent rules that will be evaluated during post-execution",
+                reason="No rules to apply for input data.",
             )
         return self._evaluate_deterministic_guardrail(
             input_data=input_data,
@@ -66,7 +66,7 @@ class DeterministicGuardrailsService(BaseModel):
         if not has_output_rule:
             return GuardrailValidationResult(
                 result=GuardrailValidationResultType.PASSED,
-                reason="Guardrail contains only input-dependent rules that were evaluated during pre-execution",
+                reason="No rules to apply for output data.",
             )
 
         return self._evaluate_deterministic_guardrail(
@@ -117,7 +117,12 @@ class DeterministicGuardrailsService(BaseModel):
         output_data: dict[str, Any],
         guardrail: DeterministicGuardrail,
     ) -> GuardrailValidationResult:
-        """Evaluate deterministic guardrail rules against input and output data."""
+        """Evaluate deterministic guardrail rules against input and output data.
+
+        Validation fails only if ALL guardrail rules are violated.
+        """
+        validated_conditions: list[str] = []
+
         for rule in guardrail.rules:
             if isinstance(rule, WordRule):
                 passed, reason = evaluate_word_rule(rule, input_data, output_data)
@@ -132,14 +137,25 @@ class DeterministicGuardrailsService(BaseModel):
                     result=GuardrailValidationResultType.VALIDATION_FAILED,
                     reason=f"Unknown rule type: {type(rule)}",
                 )
-
-            if not passed:
+            validated_conditions.append(reason)
+            if passed:
                 return GuardrailValidationResult(
-                    result=GuardrailValidationResultType.VALIDATION_FAILED,
-                    reason=reason or "Rule validation failed",
+                    result=GuardrailValidationResultType.PASSED,
+                    reason=reason,
                 )
 
+        has_always_rule = any(
+            condition == "Always rule enforced" for condition in validated_conditions
+        )
+
+        validated_conditions_str = ", ".join(validated_conditions)
+        final_reason = (
+            "Always rule enforced"
+            if has_always_rule
+            else f"Data matched all guardrail conditions: [{validated_conditions_str}]"
+        )
+
         return GuardrailValidationResult(
-            result=GuardrailValidationResultType.PASSED,
-            reason="All deterministic guardrail rules passed",
+            result=GuardrailValidationResultType.VALIDATION_FAILED,
+            reason=final_reason,
         )
