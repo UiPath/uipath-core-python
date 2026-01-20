@@ -178,6 +178,7 @@ def format_guardrail_passed_validation_result_message(
         f"[{field_ref.path}] comparing function [{operator}]"
     )
 
+
 def get_validated_conditions_description(
     field_path: str,
     operator: str | None,
@@ -194,12 +195,8 @@ def evaluate_word_rule(
 ) -> tuple[bool, str]:
     """Evaluate a word rule against input and output data."""
     fields = get_fields_from_selector(rule.field_selector, input_data, output_data)
-    operator = (
-        _humanize_guardrail_func(rule.detects_violation) or "violation check"
-    )
-    field_paths = ", ".join(
-        {field_ref.path for _, field_ref in fields}
-    )
+    operator = _humanize_guardrail_func(rule.detects_violation) or "violation check"
+    field_paths = ", ".join({field_ref.path for _, field_ref in fields})
 
     for field_value, field_ref in fields:
         if field_value is None:
@@ -237,15 +234,11 @@ def evaluate_word_rule(
 
 def evaluate_number_rule(
     rule: NumberRule, input_data: dict[str, Any], output_data: dict[str, Any]
-) -> tuple[bool, str | None]:
+) -> tuple[bool, str]:
     """Evaluate a number rule against input and output data."""
     fields = get_fields_from_selector(rule.field_selector, input_data, output_data)
-    operator = (
-        _humanize_guardrail_func(rule.detects_violation) or "violation check"
-    )
-    field_paths = ", ".join(
-        {field_ref.path for _, field_ref in fields}
-    )
+    operator = _humanize_guardrail_func(rule.detects_violation) or "violation check"
+    field_paths = ", ".join({field_ref.path for _, field_ref in fields})
     for field_value, field_ref in fields:
         if field_value is None:
             continue
@@ -285,15 +278,11 @@ def evaluate_boolean_rule(
     rule: BooleanRule,
     input_data: dict[str, Any],
     output_data: dict[str, Any],
-) -> tuple[bool, str | None]:
+) -> tuple[bool, str]:
     """Evaluate a boolean rule against input and output data."""
     fields = get_fields_from_selector(rule.field_selector, input_data, output_data)
-    operator = (
-        _humanize_guardrail_func(rule.detects_violation) or "violation check"
-    )
-    field_paths = ", ".join(
-        {field_ref.path for _, field_ref in fields}
-    )
+    operator = _humanize_guardrail_func(rule.detects_violation) or "violation check"
+    field_paths = ", ".join({field_ref.path for _, field_ref in fields})
     for field_value, field_ref in fields:
         if field_value is None:
             continue
@@ -331,7 +320,7 @@ def evaluate_boolean_rule(
 def evaluate_universal_rule(
     rule: UniversalRule,
     output_data: dict[str, Any],
-) -> tuple[bool, str | None]:
+) -> tuple[bool, str]:
     """Evaluate a universal rule against input and output data.
 
     Universal rules trigger based on the apply_to scope and execution phase:

@@ -258,7 +258,10 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
-        assert result.reason == "Data matched all guardrail conditions: [Username must include 'te' and a digit]"
+        assert (
+            result.reason
+            == "Data matched all guardrail conditions: [Username must include 'te' and a digit]"
+        )
 
     def test_evaluate_post_deterministic_guardrail_passes_validation_when_no_output_rules(
         self,
@@ -355,13 +358,14 @@ class TestDeterministicGuardrailsService:
             guardrail=deterministic_guardrail,
         )
 
-        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
-        assert (
-            result.reason
-            == "Data matched all guardrail conditions: ['[userName] comparing function "
-                 '[(s): not bool(re.search(".*te.*3.*", s))]', '[status] comparing function '
-                 "[(n): n != 200.0]']"
+        expected_reason = (
+            "Data matched all guardrail conditions: [[userName] comparing function "
+            '[(s): not bool(re.search(".*te.*3.*", s))], '
+            "[status] comparing function [(n): n != 200.0]]"
         )
+
+        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.reason == expected_reason
 
     def test_evaluate_post_deterministic_guardrail_word_contains_substring_detects_violation(
         self,
@@ -419,7 +423,7 @@ class TestDeterministicGuardrailsService:
         assert (
             result.reason
             == "Data matched all guardrail conditions: [[userName] comparing function "
-                '[(s): "dre" in s], [status] comparing function [(n): n != 200.0]]'
+            '[(s): "dre" in s], [status] comparing function [(n): n != 200.0]]'
         )
 
     def test_evaluate_post_deterministic_guardrail_number_func_passes_when_no_input_rules(
@@ -1290,7 +1294,10 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.result == GuardrailValidationResultType.PASSED
-        assert result.reason == "Output data didn't match the guardrail condition: [status] comparing function [(n): n != 200.0]"
+        assert (
+            result.reason
+            == "Output data didn't match the guardrail condition: [status] comparing function [(n): n != 200.0]"
+        )
 
     def test_evaluate_post_deterministic_guardrail_only_always_rule_fails(
         self,

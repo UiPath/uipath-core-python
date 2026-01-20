@@ -117,7 +117,10 @@ class DeterministicGuardrailsService(BaseModel):
         output_data: dict[str, Any],
         guardrail: DeterministicGuardrail,
     ) -> GuardrailValidationResult:
-        """Evaluate deterministic guardrail rules against input and output data."""
+        """Evaluate deterministic guardrail rules against input and output data.
+
+        Validation fails only if ALL guardrail rules are violated.
+        """
         validated_conditions: list[str] = []
 
         for rule in guardrail.rules:
@@ -142,8 +145,7 @@ class DeterministicGuardrailsService(BaseModel):
                 )
 
         has_always_rule = any(
-            condition == "Always rule enforced"
-            for condition in validated_conditions
+            condition == "Always rule enforced" for condition in validated_conditions
         )
 
         validated_conditions_str = ", ".join(validated_conditions)
