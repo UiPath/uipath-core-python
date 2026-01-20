@@ -40,7 +40,7 @@ class DeterministicGuardrailsService(BaseModel):
         if has_output_rule:
             return GuardrailValidationResult(
                 result=GuardrailValidationResultType.PASSED,
-                reason="Guardrail contains output-dependent rules that will be evaluated during post-execution",
+                reason="No rules to apply for input data.",
             )
         return self._evaluate_deterministic_guardrail(
             input_data=input_data,
@@ -66,7 +66,7 @@ class DeterministicGuardrailsService(BaseModel):
         if not has_output_rule:
             return GuardrailValidationResult(
                 result=GuardrailValidationResultType.PASSED,
-                reason="Guardrail contains only input-dependent rules that were evaluated during pre-execution",
+                reason="No rules to apply for output data.",
             )
 
         return self._evaluate_deterministic_guardrail(

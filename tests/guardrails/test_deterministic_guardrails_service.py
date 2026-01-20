@@ -81,10 +81,7 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.result == GuardrailValidationResultType.PASSED
-        assert (
-            result.reason
-            == "Guardrail contains only input-dependent rules that were evaluated during pre-execution"
-        )
+        assert result.reason == "No rules to apply for output data."
 
     def test_evaluate_post_deterministic_guardrail_validation_failed_age(
         self,
@@ -261,10 +258,7 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.result == GuardrailValidationResultType.PASSED
-        assert (
-            result.reason
-            == "Guardrail contains only input-dependent rules that were evaluated during pre-execution"
-        )
+        assert result.reason == "No rules to apply for output data."
 
     def test_evaluate_post_deterministic_guardrail_matches_regex_negative(
         self,
@@ -365,10 +359,7 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.result == GuardrailValidationResultType.PASSED
-        assert (
-            result.reason
-            == "Guardrail contains only input-dependent rules that were evaluated during pre-execution"
-        )
+        assert result.reason == "No rules to apply for output data."
 
     def test_evaluate_post_deterministic_guardrail_word_func_negative(
         self,
@@ -521,10 +512,7 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.result == GuardrailValidationResultType.PASSED
-        assert (
-            result.reason
-            == "Guardrail contains only input-dependent rules that were evaluated during pre-execution"
-        )
+        assert result.reason == "No rules to apply for output data."
 
     def test_evaluate_post_deterministic_guardrail_number_func_negative(
         self,
@@ -900,9 +888,8 @@ class TestDeterministicGuardrailsService:
             guardrail=guardrail,
         )
 
-        assert (
-            result.result == GuardrailValidationResultType.VALIDATION_FAILED
-        )  # Should trigger
+        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.reason == "Always rule enforced"
 
     def test_should_trigger_policy_pre_execution_always_rule_with_output_apply_to_returns_false(
         self,
@@ -923,9 +910,8 @@ class TestDeterministicGuardrailsService:
             guardrail=guardrail,
         )
 
-        assert (
-            result.result == GuardrailValidationResultType.PASSED
-        )  # Should not trigger
+        assert result.result == GuardrailValidationResultType.PASSED
+        assert result.reason == "All deterministic guardrail rules passed"
 
     def test_should_trigger_policy_pre_execution_always_rule_with_input_and_output_apply_to_returns_true(
         self,
@@ -946,9 +932,8 @@ class TestDeterministicGuardrailsService:
             guardrail=guardrail,
         )
 
-        assert (
-            result.result == GuardrailValidationResultType.VALIDATION_FAILED
-        )  # Should trigger
+        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.reason == "Always rule enforced"
 
     def test_should_trigger_policy_post_execution_always_rule_with_input_apply_to_returns_false(
         self,
@@ -973,9 +958,8 @@ class TestDeterministicGuardrailsService:
             guardrail=guardrail,
         )
 
-        assert (
-            result.result == GuardrailValidationResultType.PASSED
-        )  # Should not trigger
+        assert result.result == GuardrailValidationResultType.PASSED
+        assert result.reason == "No rules to apply for output data."
 
     def test_should_trigger_policy_post_execution_always_rule_with_output_apply_to_returns_true(
         self,
@@ -1000,9 +984,8 @@ class TestDeterministicGuardrailsService:
             guardrail=guardrail,
         )
 
-        assert (
-            result.result == GuardrailValidationResultType.VALIDATION_FAILED
-        )  # Should trigger
+        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.reason == "Always rule enforced"
 
     def test_should_trigger_policy_post_execution_always_rule_with_input_and_output_apply_to_returns_true(
         self,
@@ -1027,9 +1010,8 @@ class TestDeterministicGuardrailsService:
             guardrail=guardrail,
         )
 
-        assert (
-            result.result == GuardrailValidationResultType.VALIDATION_FAILED
-        )  # Should trigger
+        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.reason == "Always rule enforced"
 
         # Helper methods to create guardrails
 
@@ -1240,10 +1222,7 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.result == GuardrailValidationResultType.PASSED
-        assert (
-            result.reason
-            == "Guardrail contains only input-dependent rules that were evaluated during pre-execution"
-        )
+        assert result.reason == "No rules to apply for output data."
 
     def test_evaluate_post_deterministic_guardrail_only_output_rules_passes(
         self,
@@ -1336,6 +1315,7 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.reason == "Always rule enforced"
 
     def test_evaluate_post_deterministic_guardrail_only_input_rules_passes(
         self,
@@ -1384,10 +1364,7 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.result == GuardrailValidationResultType.PASSED
-        assert (
-            result.reason
-            == "Guardrail contains only input-dependent rules that were evaluated during pre-execution"
-        )
+        assert result.reason == "No rules to apply for output data."
 
     def test_evaluate_pre_deterministic_guardrail_with_input_and_output_rules_input_true(
         self,

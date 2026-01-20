@@ -302,18 +302,18 @@ def evaluate_universal_rule(
     if rule.apply_to == ApplyTo.INPUT:
         # INPUT: triggers in pre-execution, does not trigger in post-execution
         if is_pre_execution:
-            return False, "Universal rule validation triggered (pre-execution, input)"
+            return False, "Always rule enforced"
         else:
-            return True, "Universal rule validation passed (post-execution, input)"
+            return True, "No rules to apply for output data"
     elif rule.apply_to == ApplyTo.OUTPUT:
         # OUTPUT: does not trigger in pre-execution, triggers in post-execution
         if is_pre_execution:
-            return True, "Universal rule validation passed (pre-execution, output)"
+            return True, "No rules to apply for input data"
         else:
-            return False, "Universal rule validation triggered (post-execution, output)"
+            return False, "Always rule enforced"
     elif rule.apply_to == ApplyTo.INPUT_AND_OUTPUT:
         # INPUT_AND_OUTPUT: triggers in both phases
-        return False, "Universal rule validation triggered (input and output)"
+        return False, "Always rule enforced"
     else:
         return False, f"Unknown apply_to value: {rule.apply_to}"
 
