@@ -102,6 +102,11 @@ class WordRule(BaseModel):
 
     rule_type: Literal["word"] = Field(alias="$ruleType")
     field_selector: FieldSelector = Field(alias="fieldSelector")
+    rule_description: str | None = Field(
+        default=None,
+        exclude=True,
+        description="Human-friendly description of the rule condition.",
+    )
     detects_violation: Callable[[str], bool] = Field(
         exclude=True,
         description="Function that returns True if the string violates the rule (validation should fail).",
@@ -124,6 +129,11 @@ class NumberRule(BaseModel):
 
     rule_type: Literal["number"] = Field(alias="$ruleType")
     field_selector: FieldSelector = Field(alias="fieldSelector")
+    rule_description: str | None = Field(
+        default=None,
+        exclude=True,
+        description="Human-friendly description of the rule condition.",
+    )
     detects_violation: Callable[[float], bool] = Field(
         exclude=True,
         description="Function that returns True if the number violates the rule (validation should fail).",
@@ -137,6 +147,11 @@ class BooleanRule(BaseModel):
 
     rule_type: Literal["boolean"] = Field(alias="$ruleType")
     field_selector: FieldSelector = Field(alias="fieldSelector")
+    rule_description: str | None = Field(
+        default=None,
+        exclude=True,
+        description="Human-friendly description of the rule condition.",
+    )
     detects_violation: Callable[[bool], bool] = Field(
         exclude=True,
         description="Function that returns True if the boolean violates the rule (validation should fail).",

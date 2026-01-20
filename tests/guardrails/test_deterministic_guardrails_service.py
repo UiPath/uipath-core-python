@@ -83,7 +83,7 @@ class TestDeterministicGuardrailsService:
         assert result.result == GuardrailValidationResultType.PASSED
         assert result.reason == "No rules to apply for output data."
 
-    def test_evaluate_post_deterministic_guardrail_validation_failed_age(
+    def test_evaluate_post_deterministic_guardrail_validation_passes_when_input_data_dont_violates_all_the_rules(
         self,
         service: DeterministicGuardrailsService,
     ) -> None:
@@ -143,13 +143,13 @@ class TestDeterministicGuardrailsService:
             guardrail=deterministic_guardrail,
         )
 
-        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.result == GuardrailValidationResultType.PASSED
         assert (
             result.reason
-            == "Input data didn't match the guardrail condition: [age] comparing function [(n): n < 21.0]"
+            == "Input data didn't match the guardrail condition: [isActive] comparing function [(b): b is not True]"
         )
 
-    def test_evaluate_post_deterministic_guardrail_validation_failed_is_active(
+    def test_evaluate_post_deterministic_guardrail_validation_passes_when_input_and_output_data_dont_violates_all_the_rules(
         self,
         service: DeterministicGuardrailsService,
     ) -> None:
@@ -211,13 +211,56 @@ class TestDeterministicGuardrailsService:
             guardrail=deterministic_guardrail,
         )
 
-        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.result == GuardrailValidationResultType.PASSED
         assert (
             result.reason
-            == "Input data didn't match the guardrail condition: [isActive] comparing function [(b): b is not True]"
+            == "Input data didn't match the guardrail condition: [age] comparing function [(n): n < 21.0]"
         )
 
-    def test_evaluate_post_deterministic_guardrail_matches_regex_positive(
+    def test_evaluate_post_deterministic_guardrail_uses_rule_description(
+        self,
+        service: DeterministicGuardrailsService,
+    ) -> None:
+        """Ensure rule_description is returned when a rule fails validation."""
+        friendly_description = "Username must include 'te' and a digit"
+        deterministic_guardrail = DeterministicGuardrail(
+            id="test-rule-desc-id",
+            name="Regex Guardrail With Description",
+            description="Test regex guardrail with description",
+            enabled_for_evals=True,
+            guardrail_type="custom",
+            selector=GuardrailSelector(
+                scopes=[GuardrailScope.TOOL], match_names=["test"]
+            ),
+            rules=[
+                WordRule(
+                    rule_type="word",
+                    field_selector=SpecificFieldsSelector(
+                        selector_type="specific",
+                        fields=[
+                            FieldReference(path="userName", source=FieldSource.INPUT)
+                        ],
+                    ),
+                    rule_description=friendly_description,
+                    detects_violation=lambda s: not bool(re.search(".*te.*3.*", s)),
+                ),
+            ],
+        )
+
+        # Input data with userName that doesn't match the regex pattern
+        input_data = {
+            "userName": "test",
+        }
+
+        result = service.evaluate_pre_deterministic_guardrail(
+            input_data=input_data,
+            guardrail=deterministic_guardrail,
+        )
+
+        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.reason == "Data matched all guardrail conditions: [Username must include 'te' and a digit]"
+
+    def test_evaluate_post_deterministic_guardrail_passes_validation_when_no_output_rules(
         self,
         service: DeterministicGuardrailsService,
     ) -> None:
@@ -260,7 +303,7 @@ class TestDeterministicGuardrailsService:
         assert result.result == GuardrailValidationResultType.PASSED
         assert result.reason == "No rules to apply for output data."
 
-    def test_evaluate_post_deterministic_guardrail_matches_regex_negative(
+    def test_evaluate_post_deterministic_guardrail_failes_validation_when_data_macthes_rules(
         self,
         service: DeterministicGuardrailsService,
     ) -> None:
@@ -303,7 +346,7 @@ class TestDeterministicGuardrailsService:
             "userName": "test",
         }
         output_data = {
-            "status": 200,
+            "status": 201,
         }
 
         result = service.evaluate_post_deterministic_guardrail(
@@ -315,105 +358,10 @@ class TestDeterministicGuardrailsService:
         assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
         assert (
             result.reason
-            == 'Input data didn\'t match the guardrail condition: [userName] comparing function [(s): not bool(re.search(".*te.*3.*", s))]'
+            == "Data matched all guardrail conditions: ['[userName] comparing function "
+                 '[(s): not bool(re.search(".*te.*3.*", s))]', '[status] comparing function '
+                 "[(n): n != 200.0]']"
         )
-
-    def test_evaluate_post_deterministic_guardrail_word_func_positive(
-        self,
-        service: DeterministicGuardrailsService,
-    ) -> None:
-        """Test deterministic guardrail validation passes when word func returns True."""
-        deterministic_guardrail = DeterministicGuardrail(
-            id="test-deterministic-id",
-            name="Word Func Guardrail",
-            description="Test word func guardrail",
-            enabled_for_evals=True,
-            guardrail_type="custom",
-            selector=GuardrailSelector(
-                scopes=[GuardrailScope.TOOL], match_names=["test"]
-            ),
-            rules=[
-                WordRule(
-                    rule_type="word",
-                    field_selector=SpecificFieldsSelector(
-                        selector_type="specific",
-                        fields=[
-                            FieldReference(path="userName", source=FieldSource.INPUT)
-                        ],
-                    ),
-                    detects_violation=lambda s: len(s) <= 5,
-                ),
-            ],
-        )
-
-        # Input data with userName that passes the function check
-        input_data = {
-            "userName": "testuser",
-        }
-        output_data: dict[str, Any] = {}
-
-        result = service.evaluate_post_deterministic_guardrail(
-            input_data=input_data,
-            output_data=output_data,
-            guardrail=deterministic_guardrail,
-        )
-
-        assert result.result == GuardrailValidationResultType.PASSED
-        assert result.reason == "No rules to apply for output data."
-
-    def test_evaluate_post_deterministic_guardrail_word_func_negative(
-        self,
-        service: DeterministicGuardrailsService,
-    ) -> None:
-        """Test deterministic guardrail validation fails when word func returns False."""
-        deterministic_guardrail = DeterministicGuardrail(
-            id="test-deterministic-id",
-            name="Word Func Guardrail",
-            description="Test word func guardrail",
-            enabled_for_evals=True,
-            guardrail_type="custom",
-            selector=GuardrailSelector(
-                scopes=[GuardrailScope.TOOL], match_names=["test"]
-            ),
-            rules=[
-                WordRule(
-                    rule_type="word",
-                    field_selector=SpecificFieldsSelector(
-                        selector_type="specific",
-                        fields=[
-                            FieldReference(path="userName", source=FieldSource.INPUT)
-                        ],
-                    ),
-                    detects_violation=lambda s: len(s) <= 5,
-                ),
-                NumberRule(
-                    rule_type="number",
-                    field_selector=SpecificFieldsSelector(
-                        selector_type="specific",
-                        fields=[
-                            FieldReference(path="status", source=FieldSource.OUTPUT)
-                        ],
-                    ),
-                    detects_violation=lambda n: n != 200.0,
-                ),
-            ],
-        )
-
-        # Input data with userName that fails the function check
-        input_data = {
-            "userName": "test",
-        }
-        output_data = {
-            "status": 200,
-        }
-
-        result = service.evaluate_post_deterministic_guardrail(
-            input_data=input_data,
-            output_data=output_data,
-            guardrail=deterministic_guardrail,
-        )
-
-        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
 
     def test_evaluate_post_deterministic_guardrail_word_contains_substring_detects_violation(
         self,
@@ -458,7 +406,7 @@ class TestDeterministicGuardrailsService:
             "userName": "andrei",
         }
         output_data = {
-            "status": 200,
+            "status": 201,
         }
 
         result = service.evaluate_post_deterministic_guardrail(
@@ -470,10 +418,11 @@ class TestDeterministicGuardrailsService:
         assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
         assert (
             result.reason
-            == 'Input data didn\'t match the guardrail condition: [userName] comparing function [(s): "dre" in s]'
+            == "Data matched all guardrail conditions: [[userName] comparing function "
+                '[(s): "dre" in s], [status] comparing function [(n): n != 200.0]]'
         )
 
-    def test_evaluate_post_deterministic_guardrail_number_func_positive(
+    def test_evaluate_post_deterministic_guardrail_number_func_passes_when_no_input_rules(
         self,
         service: DeterministicGuardrailsService,
     ) -> None:
@@ -555,7 +504,7 @@ class TestDeterministicGuardrailsService:
             "age": 70,
         }
         output_data = {
-            "status": 200,
+            "status": 201,
         }
 
         result = service.evaluate_post_deterministic_guardrail(
@@ -566,11 +515,11 @@ class TestDeterministicGuardrailsService:
 
         assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
 
-    def test_should_trigger_policy_pre_execution_only_some_rules_not_met_returns_false(
+    def test_evaluate_post_execution_pases_when_only_some_rules_not_met(
         self,
         service: DeterministicGuardrailsService,
     ) -> None:
-        """Test pre-execution guardrail fails when some rules are not met."""
+        """Test post-execution guardrail passes when only some rules are not met."""
         guardrail = self._create_guardrail_for_pre_execution()
         input_data = {
             "userName": "John",
@@ -587,7 +536,7 @@ class TestDeterministicGuardrailsService:
             guardrail=guardrail,
         )
 
-        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.result == GuardrailValidationResultType.PASSED
 
     def test_should_ignore_post_execution_guardrail_for_pre_execution_returns_false(
         self,
@@ -637,11 +586,10 @@ class TestDeterministicGuardrailsService:
         # Pre-execution guardrail should still pass in post-execution
         assert result.result == GuardrailValidationResultType.PASSED
 
-    def test_should_trigger_policy_post_execution_with_output_fields_all_conditions_met_returns_true(
+    def test_should_trigger_policy_post_execution_with_output_fields_when_no_violation_then_returns_true(
         self,
         service: DeterministicGuardrailsService,
     ) -> None:
-        """Test post-execution guardrail passes when all conditions are met."""
         guardrail = self._create_guardrail_for_post_execution()
         input_data = {
             "userName": "John",
@@ -662,11 +610,10 @@ class TestDeterministicGuardrailsService:
 
         assert result.result == GuardrailValidationResultType.PASSED
 
-    def test_should_trigger_policy_post_execution_with_output_fields_input_conditions_not_met_returns_false(
+    def test_post_execution_with_output_fields_when_only_input_conditions_violated_then_returns_true(
         self,
         service: DeterministicGuardrailsService,
     ) -> None:
-        """Test post-execution guardrail fails when input conditions are not met."""
         guardrail = self._create_guardrail_for_post_execution()
         input_data = {
             "userName": "John",
@@ -685,13 +632,12 @@ class TestDeterministicGuardrailsService:
             guardrail=guardrail,
         )
 
-        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.result == GuardrailValidationResultType.PASSED
 
-    def test_should_trigger_policy_post_execution_with_output_fields_output_conditions_not_met_returns_false(
+    def test_post_execution_with_input_and_output_fields_output_when_only_output_conditions_violated_then_returns_true(
         self,
         service: DeterministicGuardrailsService,
     ) -> None:
-        """Test post-execution guardrail fails when output conditions are not met."""
         guardrail = self._create_guardrail_for_post_execution()
         input_data = {
             "userName": "John",
@@ -710,13 +656,12 @@ class TestDeterministicGuardrailsService:
             guardrail=guardrail,
         )
 
-        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.result == GuardrailValidationResultType.PASSED
 
-    def test_should_trigger_policy_post_execution_multiple_rules_all_conditions_must_be_met_returns_true(
+    def test_post_execution_multiple_rules_when_all_conditions_when_no_condition_is_violated_then_returns_true(
         self,
         service: DeterministicGuardrailsService,
     ) -> None:
-        """Test post-execution guardrail with multiple rules passes when all conditions are met."""
         guardrail = self._create_guardrail_with_multiple_rules()
         input_data = {
             "userName": "John",
@@ -737,7 +682,7 @@ class TestDeterministicGuardrailsService:
 
         assert result.result == GuardrailValidationResultType.PASSED
 
-    def test_should_trigger_policy_post_execution_rule_with_multiple_conditions_all_must_be_met_returns_true(
+    def test_post_execution_rule_with_multiple_conditions_when_no_condition_is_violated_then_returns_true(
         self,
         service: DeterministicGuardrailsService,
     ) -> None:
@@ -762,7 +707,7 @@ class TestDeterministicGuardrailsService:
 
         assert result.result == GuardrailValidationResultType.PASSED
 
-    def test_should_trigger_policy_post_execution_rule_with_multiple_conditions_one_condition_not_met_returns_false(
+    def test_post_execution_rule_with_multiple_conditions_when_only_some_conditions_are_violated_then_returns_true(
         self,
         service: DeterministicGuardrailsService,
     ) -> None:
@@ -785,9 +730,34 @@ class TestDeterministicGuardrailsService:
             guardrail=guardrail,
         )
 
+        assert result.result == GuardrailValidationResultType.PASSED
+
+    def test_post_execution_rule_with_multiple_conditions_when_all_condition_are_violated_then_returns_false(
+        self,
+        service: DeterministicGuardrailsService,
+    ) -> None:
+        """Test guardrail with multiple conditions fails when one condition is not met."""
+        guardrail = self._create_guardrail_with_rule_having_multiple_conditions()
+        input_data = {
+            "userName": "John",
+            "age": 15,  # < 18
+            "isActive": False,  # Not True
+        }
+        output_data = {
+            "result": "Success",
+            "status": 201,  # Not 200
+            "success": True,
+        }
+
+        result = service.evaluate_post_deterministic_guardrail(
+            input_data=input_data,
+            output_data=output_data,
+            guardrail=guardrail,
+        )
+
         assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
 
-    def test_should_trigger_policy_post_execution_with_all_fields_selector_output_schema_has_fields_returns_true(
+    def test_post_execution_with_all_fields_selector_when_no_field_violates_condition_then_returns_true(
         self,
         service: DeterministicGuardrailsService,
     ) -> None:
@@ -819,7 +789,7 @@ class TestDeterministicGuardrailsService:
         }
         output_data = {
             "result": "Success",
-            "status": 25,  # Matches the rule value
+            "status": 25,  # Doesn't match the rule value
             "success": True,
         }
 
@@ -831,7 +801,50 @@ class TestDeterministicGuardrailsService:
 
         assert result.result == GuardrailValidationResultType.PASSED
 
-    def test_should_trigger_policy_post_execution_with_all_fields_selector_empty_output_schema_returns_true(
+    def test_post_execution_with_all_fields_selector_when_all_fields_violate_condition_then_returns_false(
+        self,
+        service: DeterministicGuardrailsService,
+    ) -> None:
+        guardrail = DeterministicGuardrail(
+            id="test-all-fields-id",
+            name="Guardrail With All Fields Selector",
+            description="Test all fields selector",
+            enabled_for_evals=True,
+            guardrail_type="custom",
+            selector=GuardrailSelector(
+                scopes=[GuardrailScope.TOOL], match_names=["test"]
+            ),
+            rules=[
+                NumberRule(
+                    rule_type="number",
+                    field_selector=AllFieldsSelector(
+                        selector_type="all", sources=[FieldSource.OUTPUT]
+                    ),
+                    detects_violation=lambda n: n != 25.0,
+                ),
+            ],
+        )
+
+        input_data = {
+            "userName": "John",
+            "age": 25,
+            "isActive": True,
+        }
+        output_data = {
+            "result": "Success",
+            "status": 20,  # Matches the rule value
+            "success": True,
+        }
+
+        result = service.evaluate_post_deterministic_guardrail(
+            input_data=input_data,
+            output_data=output_data,
+            guardrail=guardrail,
+        )
+
+        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+
+    def test_post_execution_with_all_fields_selector_when_empty_output_schema_then_returns_true(
         self,
         service: DeterministicGuardrailsService,
     ) -> None:
@@ -891,7 +904,7 @@ class TestDeterministicGuardrailsService:
         assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
         assert result.reason == "Always rule enforced"
 
-    def test_should_trigger_policy_pre_execution_always_rule_with_output_apply_to_returns_false(
+    def test_should_trigger_policy_pre_execution_always_rule_with_output_apply_to_returns_true(
         self,
         service: DeterministicGuardrailsService,
     ) -> None:
@@ -911,7 +924,7 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.result == GuardrailValidationResultType.PASSED
-        assert result.reason == "All deterministic guardrail rules passed"
+        assert result.reason == "No rules to apply for input data"
 
     def test_should_trigger_policy_pre_execution_always_rule_with_input_and_output_apply_to_returns_true(
         self,
@@ -1277,7 +1290,7 @@ class TestDeterministicGuardrailsService:
         )
 
         assert result.result == GuardrailValidationResultType.PASSED
-        assert result.reason == "All deterministic guardrail rules passed"
+        assert result.reason == "Output data didn't match the guardrail condition: [status] comparing function [(n): n != 200.0]"
 
     def test_evaluate_post_deterministic_guardrail_only_always_rule_fails(
         self,
