@@ -1,5 +1,7 @@
 """Tracing manager for handling tracer implementations and function registry."""
 
+from __future__ import annotations
+
 import contextlib
 from typing import Any, Generator, Optional
 
@@ -38,13 +40,22 @@ class UiPathTraceManager:
         self,
         span_exporter: SpanExporter,
         batch: bool = True,
-    ) -> "UiPathTraceManager":
+    ) -> UiPathTraceManager:
         """Add a span processor to the tracer provider."""
         span_processor: SpanProcessor
         if batch:
             span_processor = UiPathExecutionBatchTraceProcessor(span_exporter)
         else:
             span_processor = UiPathExecutionSimpleTraceProcessor(span_exporter)
+        self.tracer_span_processors.append(span_processor)
+        self.tracer_provider.add_span_processor(span_processor)
+        return self
+
+    def add_span_processor(
+        self,
+        span_processor: SpanProcessor,
+    ) -> UiPathTraceManager:
+        """Add a span processor to the tracer provider."""
         self.tracer_span_processors.append(span_processor)
         self.tracer_provider.add_span_processor(span_processor)
         return self
