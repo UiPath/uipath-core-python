@@ -15,6 +15,7 @@ from uipath.core.tracing.processors import (
     UiPathExecutionBatchTraceProcessor,
     UiPathExecutionSimpleTraceProcessor,
 )
+from uipath.core.tracing.types import UiPathTraceSettings
 
 
 class UiPathTraceManager:
@@ -40,13 +41,22 @@ class UiPathTraceManager:
         self,
         span_exporter: SpanExporter,
         batch: bool = True,
+        settings: UiPathTraceSettings | None = None,
     ) -> UiPathTraceManager:
-        """Add a span processor to the tracer provider."""
+        """Add a span exporter to the tracer provider.
+
+        Args:
+            span_exporter: The exporter to add.
+            batch: Whether to use batch processing (default: True).
+            settings: Optional trace settings for filtering, etc.
+        """
         span_processor: SpanProcessor
         if batch:
-            span_processor = UiPathExecutionBatchTraceProcessor(span_exporter)
+            span_processor = UiPathExecutionBatchTraceProcessor(span_exporter, settings)
         else:
-            span_processor = UiPathExecutionSimpleTraceProcessor(span_exporter)
+            span_processor = UiPathExecutionSimpleTraceProcessor(
+                span_exporter, settings
+            )
         self.tracer_span_processors.append(span_processor)
         self.tracer_provider.add_span_processor(span_processor)
         return self
