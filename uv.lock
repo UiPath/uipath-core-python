@@ -991,7 +991,7 @@ wheels = [
 
 [[package]]
 name = "uipath-core"
-version = "0.2.0"
+version = "0.2.1"
 source = { editable = "." }
 dependencies = [
     { name = "opentelemetry-instrumentation" },
@@ -1016,8 +1016,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "opentelemetry-instrumentation", specifier = ">=0.60b1,<1.0.0" },
-    { name = "opentelemetry-sdk", specifier = ">=1.39.1,<2.0.0" },
+    { name = "opentelemetry-instrumentation", specifier = ">=0.60b0,<1.0.0" },
+    { name = "opentelemetry-sdk", specifier = ">=1.39.0,<2.0.0" },
     { name = "pydantic", specifier = ">=2.12.5,<3.0.0" },
 ]
 
