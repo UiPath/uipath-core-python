@@ -3,14 +3,11 @@
 import inspect
 import json
 from collections.abc import Callable
-from dataclasses import asdict, is_dataclass
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Mapping, Optional, cast
-from zoneinfo import ZoneInfo
+from typing import Any, Mapping, Optional
 
 from opentelemetry.trace import Span
-from pydantic import BaseModel
+
+from uipath.core.serialization import serialize_json
 
 
 def get_supported_params(
@@ -31,64 +28,19 @@ def get_supported_params(
     return supported
 
 
-def _simple_serialize_defaults(
-    obj: Any,
-) -> dict[str, Any] | list[Any] | str | int | float | bool | None:
-    # Handle Pydantic BaseModel instances
-    if hasattr(obj, "model_dump") and not isinstance(obj, type):
-        return obj.model_dump(exclude_none=True, mode="json")
-
-    # Handle classes - convert to schema representation
-    if isinstance(obj, type) and issubclass(obj, BaseModel):
-        return {
-            "__class__": obj.__name__,
-            "__module__": obj.__module__,
-            "schema": obj.model_json_schema(),
-        }
-    if hasattr(obj, "dict") and not isinstance(obj, type):
-        return obj.dict()
-    if hasattr(obj, "to_dict") and not isinstance(obj, type):
-        return obj.to_dict()
-
-    # Handle dataclasses
-    if is_dataclass(obj) and not isinstance(obj, type):
-        return asdict(obj)
-
-    # Handle enums
-    if isinstance(obj, Enum):
-        return _simple_serialize_defaults(obj.value)
-
-    if isinstance(obj, (set, tuple)):
-        if hasattr(obj, "_asdict") and callable(obj._asdict):  # pyright: ignore[reportAttributeAccessIssue]
-            return cast(dict[str, Any], obj._asdict())  # pyright: ignore[reportAttributeAccessIssue]
-        return list(obj)
-
-    if isinstance(obj, datetime):
-        return obj.isoformat()
-
-    if isinstance(obj, (timezone, ZoneInfo)):
-        return obj.tzname(None)
-
-    # Allow JSON-serializable primitives to pass through unchanged
-    if obj is None or isinstance(obj, (bool, int, float, str)):
-        return obj
-
-    return str(obj)
-
-
 def format_args_for_trace_json(
     signature: inspect.Signature, *args: Any, **kwargs: Any
 ) -> str:
     """Return a JSON string of inputs from the function signature."""
     result = format_args_for_trace(signature, *args, **kwargs)
-    return json.dumps(result, default=_simple_serialize_defaults)
+    return serialize_json(result)
 
 
 def format_object_for_trace_json(
     input_object: Any,
 ) -> str:
     """Return a JSON string of inputs from the function signature."""
-    return json.dumps(input_object, default=_simple_serialize_defaults)
+    return serialize_json(input_object)
 
 
 def format_args_for_trace(
