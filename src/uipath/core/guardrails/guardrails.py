@@ -120,6 +120,11 @@ class UniversalRule(BaseModel):
 
     rule_type: Literal["always"] = Field(alias="$ruleType")
     apply_to: ApplyTo = Field(alias="applyTo")
+    rule_description: str | None = Field(
+        default=None,
+        exclude=True,
+        description="Human-friendly description of the rule condition.",
+    )
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
