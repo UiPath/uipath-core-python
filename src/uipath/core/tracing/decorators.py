@@ -107,6 +107,7 @@ def _opentelemetry_traced(
                     run_type=run_type,
                     span_type=span_type or "function_call_sync",
                     input_processor=input_processor,
+                    input_attributes_callable=input_attributes_callable,
                 )
 
                 # Execute the function
@@ -117,6 +118,7 @@ def _opentelemetry_traced(
                     span,
                     result=result,
                     output_processor=output_processor,
+                    output_attributes_callable=output_attributes_callable,
                 )
                 return result
             except Exception as e:
@@ -144,6 +146,7 @@ def _opentelemetry_traced(
                     run_type=run_type,
                     span_type=span_type or "function_call_async",
                     input_processor=input_processor,
+                    input_attributes_callable=input_attributes_callable,
                 )
 
                 # Execute the function
@@ -154,6 +157,7 @@ def _opentelemetry_traced(
                     span,
                     result=result,
                     output_processor=output_processor,
+                    output_attributes_callable=output_attributes_callable,
                 )
                 return result
             except Exception as e:
@@ -183,6 +187,7 @@ def _opentelemetry_traced(
                     run_type=run_type,
                     span_type=span_type or "function_call_generator_sync",
                     input_processor=input_processor,
+                    input_attributes_callable=input_attributes_callable,
                 )
 
                 # Execute the generator and collect outputs
@@ -197,6 +202,7 @@ def _opentelemetry_traced(
                     span,
                     result=outputs,
                     output_processor=output_processor,
+                    output_attributes_callable=output_attributes_callable,
                 )
             except Exception as e:
                 span.record_exception(e)
@@ -225,6 +231,7 @@ def _opentelemetry_traced(
                     run_type=run_type,
                     span_type=span_type or "function_call_generator_async",
                     input_processor=input_processor,
+                    input_attributes_callable=input_attributes_callable,
                 )
 
                 # Execute the generator and collect outputs
@@ -239,6 +246,7 @@ def _opentelemetry_traced(
                     span,
                     result=outputs,
                     output_processor=output_processor,
+                    output_attributes_callable=output_attributes_callable,
                 )
             except Exception as e:
                 span.record_exception(e)

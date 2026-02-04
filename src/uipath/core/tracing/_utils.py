@@ -123,12 +123,13 @@ def set_span_input_attributes(
     span.set_attribute("input.mime_type", "application/json")
     span.set_attribute("input.value", inputs)
 
-    try:
-        for key, value in input_attributes_callable(*args, **kwargs):
-            span.set_attribute(key, value)
-    except Exception:
-        # catch exceptions silently if there are some attributes we cannot set and return the already set ones
-        pass
+    if input_attributes_callable:
+        try:
+            for key, value in input_attributes_callable(*args, **kwargs):
+                span.set_attribute(key, value)
+        except Exception:
+            # Suppress exceptions from custom attributes to avoid breaking instrumentation (already-set attributes remain)
+            pass
 
 def set_span_output_attributes(
     span: Span,
@@ -148,9 +149,10 @@ def set_span_output_attributes(
     output = output_processor(result) if output_processor else result
     span.set_attribute("output.value", format_object_for_trace_json(output))
     span.set_attribute("output.mime_type", "application/json")
-    try:
-        for key, value in output_attributes_callable(result):
-            span.set_attribute(key, value)
-    except Exception:
-        # catch exceptions silently if there are some attributes we cannot set and return the already set ones
-        pass
+    if output_processor:
+        try:
+            for key, value in output_attributes_callable(result):
+                span.set_attribute(key, value)
+        except Exception:
+            # Suppress exceptions from custom attributes to avoid breaking instrumentation (already-set attributes remain)
+            pass
