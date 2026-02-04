@@ -149,7 +149,7 @@ def set_span_output_attributes(
     output = output_processor(result) if output_processor else result
     span.set_attribute("output.value", format_object_for_trace_json(output))
     span.set_attribute("output.mime_type", "application/json")
-    if output_processor:
+    if output_attributes_callable:
         try:
             for key, value in output_attributes_callable(result):
                 span.set_attribute(key, value)
