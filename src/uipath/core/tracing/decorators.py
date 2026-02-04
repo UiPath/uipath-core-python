@@ -32,6 +32,8 @@ def _opentelemetry_traced(
     span_type: Optional[str] = None,
     input_processor: Optional[Callable[..., Any]] = None,
     output_processor: Optional[Callable[..., Any]] = None,
+    input_attributes_callable: Optional[Callable[..., dict[str, Any]]] = None,
+    output_attributes_callable: Optional[Callable[..., dict[str, Any]]] = None,
     recording: bool = True,
 ):
     """Default tracer implementation using OpenTelemetry.
@@ -264,6 +266,8 @@ def traced(
     span_type: Optional[str] = None,
     input_processor: Optional[Callable[..., Any]] = None,
     output_processor: Optional[Callable[..., Any]] = None,
+    input_attributes_callable: Optional[Callable[..., dict[str, Any]]] = None,
+    output_attributes_callable: Optional[Callable[..., dict[str, Any]]] = None,
     hide_input: bool = False,
     hide_output: bool = False,
     recording: bool = True,
@@ -304,6 +308,8 @@ def traced(
         "span_type": span_type,
         "input_processor": input_processor,
         "output_processor": output_processor,
+        "input_attributes_callable": input_attributes_callable,
+        "output_attributes_callable": output_attributes_callable,
         "recording": recording,
     }
 
