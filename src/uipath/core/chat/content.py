@@ -87,5 +87,6 @@ class UiPathConversationContentPart(BaseModel):
     citations: list[UiPathConversationCitation] | None = None
     is_transcript: bool | None = Field(None, alias="isTranscript")
     is_incomplete: bool | None = Field(None, alias="isIncomplete")
+    name: str | None = None
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
