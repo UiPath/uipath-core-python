@@ -1,9 +1,18 @@
 """Guardrails models for UiPath Platform."""
 
 from enum import Enum
-from typing import Annotated, Callable, Literal
+from typing import Annotated, Any, Callable, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+def _decapitalize_first_letter(s: str) -> str:
+    """Convert first letter to lowercase (e.g., 'SimpleText' -> 'simpleText')."""
+    if not s or len(s) == 0:
+        return s
+    if len(s) == 1:
+        return s.lower()
+    return s[0].lower() + s[1:]
 
 
 class GuardrailValidationResultType(str, Enum):
@@ -56,6 +65,12 @@ class FieldReference(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
+    @field_validator("source", mode="before")
+    @classmethod
+    def normalize_type(cls, v: Any) -> Any:
+        """Normalize type by decapitalizing first letter."""
+        return _decapitalize_first_letter(v) if isinstance(v, str) else v
+
 
 class SelectorType(str, Enum):
     """Selector type enumeration."""
@@ -71,6 +86,17 @@ class AllFieldsSelector(BaseModel):
     sources: list[FieldSource]
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    @field_validator("sources", mode="before")
+    @classmethod
+    def normalize_sources(cls, v: Any) -> Any:
+        """Normalize sources by decapitalizing first letter of each item."""
+        if isinstance(v, list):
+            return [
+                _decapitalize_first_letter(item) if isinstance(item, str) else item
+                for item in v
+            ]
+        return v
 
 
 class SpecificFieldsSelector(BaseModel):
@@ -127,6 +153,12 @@ class UniversalRule(BaseModel):
     )
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    @field_validator("apply_to", mode="before")
+    @classmethod
+    def normalize_type(cls, v: Any) -> Any:
+        """Normalize type by decapitalizing first letter."""
+        return _decapitalize_first_letter(v) if isinstance(v, str) else v
 
 
 class NumberRule(BaseModel):
