@@ -1,12 +1,39 @@
 """Interrupt events for human-in-the-loop patterns."""
 
-from typing import Any
+from enum import Enum
+from typing import Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class UiPathConversationInterruptStartEvent(BaseModel):
-    """Signals the start of an interrupt - a pause point where the agent needs external input."""
+class InterruptTypeEnum(str, Enum):
+    """Enum of known interrupt types."""
+
+    TOOL_CALL_CONFIRMATION = "uipath_cas_tool_call_confirmation"
+
+
+class UiPathConversationToolCallConfirmationValue(BaseModel):
+    """Schema for tool call confirmation interrupt value."""
+
+    tool_call_id: str = Field(..., alias="toolCallId")
+    tool_name: str = Field(..., alias="toolName")
+    input_schema: Any = Field(..., alias="inputSchema")
+    input_value: Any | None = Field(None, alias="inputValue")
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class UiPathConversationToolCallConfirmationInterruptStartEvent(BaseModel):
+    """Tool call confirmation interrupt start event with strong typing."""
+
+    type: Literal["uipath_cas_tool_call_confirmation"]
+    value: UiPathConversationToolCallConfirmationValue
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class UiPathConversationGenericInterruptStartEvent(BaseModel):
+    """Generic interrupt start event for custom interrupt types."""
 
     type: str
     value: Any
@@ -14,13 +41,43 @@ class UiPathConversationInterruptStartEvent(BaseModel):
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
 
-class UiPathConversationInterruptEndEvent(BaseModel):
-    """Signals the interrupt end event with the provided value."""
+UiPathConversationInterruptStartEvent = Union[
+    UiPathConversationToolCallConfirmationInterruptStartEvent,
+    UiPathConversationGenericInterruptStartEvent,
+]
 
-    # Can be any type
-    model_config = ConfigDict(
-        validate_by_name=True, validate_by_alias=True, extra="allow"
-    )
+
+class UiPathConversationToolCallConfirmationEndValue(BaseModel):
+    """Schema for tool call confirmation end value."""
+
+    approved: bool
+    input: Any | None = None
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class UiPathConversationToolCallConfirmationInterruptEndEvent(BaseModel):
+    """Tool call confirmation interrupt end event with strong typing."""
+
+    type: Literal["uipath_cas_tool_call_confirmation"]
+    value: UiPathConversationToolCallConfirmationEndValue
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class UiPathConversationGenericInterruptEndEvent(BaseModel):
+    """Generic interrupt end event for custom interrupt types."""
+
+    type: str
+    value: Any
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+UiPathConversationInterruptEndEvent = Union[
+    UiPathConversationToolCallConfirmationInterruptEndEvent,
+    UiPathConversationGenericInterruptEndEvent,
+]
 
 
 class UiPathConversationInterruptEvent(BaseModel):
@@ -30,6 +87,6 @@ class UiPathConversationInterruptEvent(BaseModel):
     start: UiPathConversationInterruptStartEvent | None = Field(
         None, alias="startInterrupt"
     )
-    end: Any | None = Field(None, alias="endInterrupt")
+    end: UiPathConversationInterruptEndEvent | None = Field(None, alias="endInterrupt")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)

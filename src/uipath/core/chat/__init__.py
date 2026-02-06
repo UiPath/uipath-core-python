@@ -79,9 +79,16 @@ from .exchange import (
     UiPathConversationExchangeStartEvent,
 )
 from .interrupt import (
+    InterruptTypeEnum,
+    UiPathConversationGenericInterruptEndEvent,
+    UiPathConversationGenericInterruptStartEvent,
     UiPathConversationInterruptEndEvent,
     UiPathConversationInterruptEvent,
     UiPathConversationInterruptStartEvent,
+    UiPathConversationToolCallConfirmationEndValue,
+    UiPathConversationToolCallConfirmationInterruptEndEvent,
+    UiPathConversationToolCallConfirmationInterruptStartEvent,
+    UiPathConversationToolCallConfirmationValue,
 )
 from .message import (
     UiPathConversationMessage,
@@ -122,9 +129,16 @@ __all__ = [
     "UiPathConversationMessageEvent",
     "UiPathConversationMessage",
     # Interrupt
+    "InterruptTypeEnum",
     "UiPathConversationInterruptStartEvent",
     "UiPathConversationInterruptEndEvent",
     "UiPathConversationInterruptEvent",
+    "UiPathConversationToolCallConfirmationValue",
+    "UiPathConversationToolCallConfirmationEndValue",
+    "UiPathConversationToolCallConfirmationInterruptStartEvent",
+    "UiPathConversationToolCallConfirmationInterruptEndEvent",
+    "UiPathConversationGenericInterruptStartEvent",
+    "UiPathConversationGenericInterruptEndEvent",
     # Content
     "UiPathConversationContentPartChunkEvent",
     "UiPathConversationContentPartStartEvent",
