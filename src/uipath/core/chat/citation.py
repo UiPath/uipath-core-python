@@ -34,7 +34,16 @@ class UiPathConversationCitationEvent(BaseModel):
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
 
-class UiPathConversationCitationSourceUrl(BaseModel):
+class UiPathConversationCitationSourceBase(BaseModel):
+    """Represents a citation source with common base fields."""
+
+    title: str
+    number: int
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class UiPathConversationCitationSourceUrl(UiPathConversationCitationSourceBase):
     """Represents a citation source that can be rendered as a link (URL)."""
 
     url: str
@@ -42,29 +51,19 @@ class UiPathConversationCitationSourceUrl(BaseModel):
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
 
-class UiPathConversationCitationSourceMedia(BaseModel):
+class UiPathConversationCitationSourceMedia(UiPathConversationCitationSourceBase):
     """Represents a citation source that references media, such as a PDF document."""
 
-    mime_type: str = Field(..., alias="mimeType")
+    mime_type: str | None = Field(..., alias="mimeType")
     download_url: str | None = Field(None, alias="downloadUrl")
     page_number: str | None = Field(None, alias="pageNumber")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
 
-class UiPathConversationCitationSource(BaseModel):
-    """Represents a citation source, either a URL or media reference."""
-
-    title: str
-    number: int
-
-    # Union of Url or Media - these are optional
-    url: str | None = None
-    mime_type: str | None = Field(None, alias="mimeType")
-    download_url: str | None = Field(None, alias="downloadUrl")
-    page_number: str | None = Field(None, alias="pageNumber")
-
-    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+UiPathConversationCitationSource = (
+    UiPathConversationCitationSourceUrl | UiPathConversationCitationSourceMedia
+)
 
 
 class UiPathConversationCitation(BaseModel):
@@ -74,5 +73,7 @@ class UiPathConversationCitation(BaseModel):
     offset: int
     length: int
     sources: list[UiPathConversationCitationSource]
+    created_at: str = Field(..., alias="createdAt")
+    updated_at: str = Field(..., alias="updatedAt")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)

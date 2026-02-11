@@ -62,5 +62,8 @@ class UiPathConversationExchange(BaseModel):
 
     exchange_id: str = Field(..., alias="exchangeId")
     messages: list[UiPathConversationMessage]
+    created_at: str = Field(..., alias="createdAt")
+    updated_at: str = Field(..., alias="updatedAt")
+    span_id: str | None = Field(None, alias="spanId")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)

@@ -5,7 +5,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class UiPathConversationCapabilities(BaseModel):
+class UiPathSessionCapabilities(BaseModel):
     """Describes the capabilities of a conversation participant."""
 
     async_input_stream_emitter: bool | None = Field(
@@ -24,25 +24,33 @@ class UiPathConversationCapabilities(BaseModel):
     )
 
 
-class UiPathConversationStartEvent(BaseModel):
-    """Signals the start of a conversation event stream."""
+class UiPathSessionStartEvent(BaseModel):
+    """Signals the start of session for a conversation."""
 
-    capabilities: UiPathConversationCapabilities | None = None
+    capabilities: UiPathSessionCapabilities | None = None
     metadata: dict[str, Any] | None = Field(None, alias="metaData")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
 
-class UiPathConversationStartedEvent(BaseModel):
-    """Signals the acceptance of the start of a conversation."""
+class UiPathSessionStartedEvent(BaseModel):
+    """Sent in response to a SessionStartEvent to signal the acceptance of the session."""
 
-    capabilities: UiPathConversationCapabilities | None = None
+    capabilities: UiPathSessionCapabilities | None = None
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
 
-class UiPathConversationEndEvent(BaseModel):
-    """Signals the end of a conversation event stream."""
+class UiPathSessionEndingEvent(BaseModel):
+    """Sent by the service when the client needs to end the current session."""
+
+    time_to_live_ms: int = Field(..., alias="timeToLiveMS")
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class UiPathSessionEndEvent(BaseModel):
+    """Signals the end of a session for a conversation."""
 
     metadata: dict[str, Any] | None = Field(None, alias="metaData")
 

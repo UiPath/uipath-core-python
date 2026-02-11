@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .content import UiPathConversationContentPart, UiPathConversationContentPartEvent
 from .error import UiPathConversationErrorEvent
-from .interrupt import UiPathConversationInterruptEvent
+from .interrupt import UiPathConversationInterrupt, UiPathConversationInterruptEvent
 from .tool import UiPathConversationToolCall, UiPathConversationToolCallEvent
 
 
@@ -53,11 +53,13 @@ class UiPathConversationMessage(BaseModel):
 
     message_id: str = Field(..., alias="messageId")
     role: str
-    content_parts: list[UiPathConversationContentPart] | None = Field(
-        None, alias="contentParts"
+    content_parts: list[UiPathConversationContentPart] = Field(
+        ..., alias="contentParts"
     )
-    tool_calls: list[UiPathConversationToolCall] | None = Field(None, alias="toolCalls")
+    tool_calls: list[UiPathConversationToolCall] = Field(..., alias="toolCalls")
+    interrupts: list[UiPathConversationInterrupt]
     created_at: str = Field(..., alias="createdAt")
     updated_at: str = Field(..., alias="updatedAt")
+    span_id: str | None = Field(None, alias="spanId")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)

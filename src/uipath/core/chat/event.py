@@ -7,14 +7,15 @@ exchanges, messages, content, citations, tool calls, and async streams).
 from pydantic import BaseModel, ConfigDict, Field
 
 from .async_stream import UiPathConversationAsyncInputStreamEvent
-from .conversation import (
-    UiPathConversationEndEvent,
-    UiPathConversationStartedEvent,
-    UiPathConversationStartEvent,
-)
 from .error import UiPathConversationErrorEvent
 from .exchange import UiPathConversationExchangeEvent
 from .meta import UiPathConversationMetaEvent
+from .session import (
+    UiPathSessionEndEvent,
+    UiPathSessionEndingEvent,
+    UiPathSessionStartedEvent,
+    UiPathSessionStartEvent,
+)
 from .tool import UiPathConversationToolCallEvent
 
 
@@ -39,20 +40,25 @@ class UiPathConversationEvent(BaseModel):
         alias="conversationId",
         description="A globally unique identifier for conversation to which the other sub-event and data properties apply.",
     )
-    start: UiPathConversationStartEvent | None = Field(
+    start: UiPathSessionStartEvent | None = Field(
         None,
         alias="startSession",
-        description="Signals the start of an event stream concerning a conversation. This event does NOT necessarily mean this is a brand new conversation. It may be a continuation of an existing conversation.",
+        description="Signals the start of session for a conversation.",
     )
-    started: UiPathConversationStartedEvent | None = Field(
+    started: UiPathSessionStartedEvent | None = Field(
         None,
         alias="sessionStarted",
-        description="Signals the acceptance of the start of a conversation.",
+        description="Sent in response to a SessionStartEvent to signal the acceptance of the session.",
     )
-    end: UiPathConversationEndEvent | None = Field(
+    ending: UiPathSessionEndingEvent | None = Field(
+        None,
+        alias="sessionEnding",
+        description="Sent by the service when the client needs to end the current session.",
+    )
+    end: UiPathSessionEndEvent | None = Field(
         None,
         alias="endSession",
-        description="Signals the end of a conversation event stream. This does NOT mean the conversation is over. A new event stream for the conversation could be started in the future.",
+        description="Signals the end of a session for a conversation.",
     )
     exchange: UiPathConversationExchangeEvent | None = Field(
         None,
