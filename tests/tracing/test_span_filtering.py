@@ -35,8 +35,9 @@ class TestSpanFiltering:
         mock_exporter.export.return_value = SpanExportResult.SUCCESS
 
         settings = UiPathTraceSettings(
-            span_filter=lambda span: span.attributes is not None
-            and span.attributes.get("keep") is True
+            span_filter=lambda span: (
+                span.attributes is not None and span.attributes.get("keep") is True
+            )
         )
         trace_manager = UiPathTraceManager()
         trace_manager.add_span_exporter(mock_exporter, batch=False, settings=settings)
@@ -208,12 +209,14 @@ class TestSpanFiltering:
         mock_exporter_b.export.return_value = SpanExportResult.SUCCESS
 
         settings_a = UiPathTraceSettings(
-            span_filter=lambda span: span.attributes is not None
-            and span.attributes.get("dest") == "a"
+            span_filter=lambda span: (
+                span.attributes is not None and span.attributes.get("dest") == "a"
+            )
         )
         settings_b = UiPathTraceSettings(
-            span_filter=lambda span: span.attributes is not None
-            and span.attributes.get("dest") == "b"
+            span_filter=lambda span: (
+                span.attributes is not None and span.attributes.get("dest") == "b"
+            )
         )
 
         trace_manager = UiPathTraceManager()
