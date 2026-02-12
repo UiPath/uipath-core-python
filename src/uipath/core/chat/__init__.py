@@ -46,12 +46,14 @@ from .citation import (
     UiPathConversationCitationEndEvent,
     UiPathConversationCitationEvent,
     UiPathConversationCitationSource,
+    UiPathConversationCitationSourceBase,
     UiPathConversationCitationSourceMedia,
     UiPathConversationCitationSourceUrl,
     UiPathConversationCitationStartEvent,
 )
 from .content import (
     InlineOrExternal,
+    UiPathContentPartInterrupted,
     UiPathConversationContentPart,
     UiPathConversationContentPartChunkEvent,
     UiPathConversationContentPartEndEvent,
@@ -59,12 +61,6 @@ from .content import (
     UiPathConversationContentPartStartEvent,
     UiPathExternalValue,
     UiPathInlineValue,
-)
-from .conversation import (
-    UiPathConversationCapabilities,
-    UiPathConversationEndEvent,
-    UiPathConversationStartedEvent,
-    UiPathConversationStartEvent,
 )
 from .error import (
     UiPathConversationErrorEndEvent,
@@ -82,6 +78,7 @@ from .interrupt import (
     InterruptTypeEnum,
     UiPathConversationGenericInterruptEndEvent,
     UiPathConversationGenericInterruptStartEvent,
+    UiPathConversationInterrupt,
     UiPathConversationInterruptEndEvent,
     UiPathConversationInterruptEvent,
     UiPathConversationInterruptStartEvent,
@@ -97,6 +94,13 @@ from .message import (
     UiPathConversationMessageStartEvent,
 )
 from .meta import UiPathConversationMetaEvent
+from .session import (
+    UiPathSessionCapabilities,
+    UiPathSessionEndEvent,
+    UiPathSessionEndingEvent,
+    UiPathSessionStartedEvent,
+    UiPathSessionStartEvent,
+)
 from .tool import (
     UiPathConversationToolCall,
     UiPathConversationToolCallEndEvent,
@@ -113,11 +117,12 @@ __all__ = [
     "UiPathConversationErrorStartEvent",
     "UiPathConversationErrorEndEvent",
     "UiPathConversationErrorEvent",
-    # Conversation
-    "UiPathConversationCapabilities",
-    "UiPathConversationStartEvent",
-    "UiPathConversationStartedEvent",
-    "UiPathConversationEndEvent",
+    # Session
+    "UiPathSessionCapabilities",
+    "UiPathSessionStartEvent",
+    "UiPathSessionStartedEvent",
+    "UiPathSessionEndingEvent",
+    "UiPathSessionEndEvent",
     # Exchange
     "UiPathConversationExchangeStartEvent",
     "UiPathConversationExchangeEndEvent",
@@ -139,9 +144,11 @@ __all__ = [
     "UiPathConversationToolCallConfirmationInterruptEndEvent",
     "UiPathConversationGenericInterruptStartEvent",
     "UiPathConversationGenericInterruptEndEvent",
+    "UiPathConversationInterrupt",
     # Content
     "UiPathConversationContentPartChunkEvent",
     "UiPathConversationContentPartStartEvent",
+    "UiPathContentPartInterrupted",
     "UiPathConversationContentPartEndEvent",
     "UiPathConversationContentPartEvent",
     "UiPathConversationContentPart",
@@ -152,9 +159,10 @@ __all__ = [
     "UiPathConversationCitationStartEvent",
     "UiPathConversationCitationEndEvent",
     "UiPathConversationCitationEvent",
-    "UiPathConversationCitationSource",
+    "UiPathConversationCitationSourceBase",
     "UiPathConversationCitationSourceUrl",
     "UiPathConversationCitationSourceMedia",
+    "UiPathConversationCitationSource",
     "UiPathConversationCitation",
     # Tool
     "UiPathConversationToolCallStartEvent",

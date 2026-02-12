@@ -90,3 +90,16 @@ class UiPathConversationInterruptEvent(BaseModel):
     end: UiPathConversationInterruptEndEvent | None = Field(None, alias="endInterrupt")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class UiPathConversationInterrupt(BaseModel):
+    """Represents an interrupt within a message - a pause point where the agent needs external input."""
+
+    interrupt_id: str = Field(..., alias="interruptId")
+    type: str
+    interrupt_value: Any = Field(..., alias="interruptValue")
+    end_value: Any | None = Field(None, alias="endValue")
+    created_at: str = Field(..., alias="createdAt")
+    updated_at: str = Field(..., alias="updatedAt")
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)

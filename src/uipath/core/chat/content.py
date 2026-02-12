@@ -1,5 +1,7 @@
 """Message content part events."""
 
+from __future__ import annotations
+
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -22,9 +24,15 @@ class UiPathConversationContentPartStartEvent(BaseModel):
 
     mime_type: str = Field(..., alias="mimeType")
     metadata: dict[str, Any] | None = Field(None, alias="metaData")
-    external_value: "UiPathExternalValue | None" = Field(None, alias="externalValue")
+    external_value: UiPathExternalValue | None = Field(None, alias="externalValue")
     name: str | None = None
     timestamp: str | None = None
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class UiPathContentPartInterrupted(BaseModel):
+    """Indicates the interrupt of a content stream."""
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
@@ -35,7 +43,7 @@ class UiPathConversationContentPartEndEvent(BaseModel):
     last_chunk_content_part_sequence: int | None = Field(
         None, alias="lastChunkContentPartSequence"
     )
-    interrupted: dict[str, Any] | None = None
+    interrupted: UiPathContentPartInterrupted | None = None
     metadata: dict[str, Any] | None = Field(None, alias="metaData")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
@@ -88,5 +96,7 @@ class UiPathConversationContentPart(BaseModel):
     is_transcript: bool | None = Field(None, alias="isTranscript")
     is_incomplete: bool | None = Field(None, alias="isIncomplete")
     name: str | None = None
+    created_at: str = Field(..., alias="createdAt")
+    updated_at: str = Field(..., alias="updatedAt")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
