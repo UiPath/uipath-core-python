@@ -86,6 +86,7 @@ def set_span_input_attributes(
     span_type: str,
     run_type: Optional[str],
     input_processor: Optional[Callable[..., Any]],
+    input_attributes_callable: Optional[Callable[..., dict[str, Any]]] = None,
 ) -> None:
     """Set span attributes for metadata and inputs before function execution.
 
@@ -122,11 +123,19 @@ def set_span_input_attributes(
     span.set_attribute("input.mime_type", "application/json")
     span.set_attribute("input.value", inputs)
 
+    if input_attributes_callable:
+        try:
+            for key, value in input_attributes_callable(*args, **kwargs).items():
+                span.set_attribute(key, value)
+        except Exception:
+            # Suppress exceptions from custom attributes to avoid breaking instrumentation (already-set attributes remain)
+            pass
 
 def set_span_output_attributes(
     span: Span,
     result: Any,
     output_processor: Optional[Callable[..., Any]],
+    output_attributes_callable: Optional[Callable[..., dict[str, Any]]] = None,
 ) -> None:
     """Set span attributes for outputs after function execution.
 
@@ -140,3 +149,10 @@ def set_span_output_attributes(
     output = output_processor(result) if output_processor else result
     span.set_attribute("output.value", format_object_for_trace_json(output))
     span.set_attribute("output.mime_type", "application/json")
+    if output_attributes_callable:
+        try:
+            for key, value in output_attributes_callable(result).items():
+                span.set_attribute(key, value)
+        except Exception:
+            # Suppress exceptions from custom attributes to avoid breaking instrumentation (already-set attributes remain)
+            pass
