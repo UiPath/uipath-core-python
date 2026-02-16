@@ -76,6 +76,29 @@ def test_traced_sync_function(setup_tracer):
     assert span.attributes["output.value"] == "5"
 
 
+def test_traced_bare_sync_function(setup_tracer):
+    """Test @traced without parentheses on a sync function."""
+    exporter, provider = setup_tracer
+
+    @traced
+    def sample_function(x, y):
+        return x + y
+
+    result = sample_function(2, 3)
+    assert result == 5
+
+    provider.shutdown()
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "sample_function"
+    assert span.attributes["span_type"] == "function_call_sync"
+    assert "input.value" in span.attributes
+    assert "output.value" in span.attributes
+    assert span.attributes["output.value"] == "5"
+
+
 @pytest.mark.asyncio
 async def test_traced_async_function(setup_tracer):
     exporter, provider = setup_tracer
@@ -88,6 +111,32 @@ async def test_traced_async_function(setup_tracer):
     assert result == 6
 
     provider.shutdown()  # Ensure spans are flushed
+
+    await sleep(1)
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "sample_async_function"
+    assert span.attributes["span_type"] == "function_call_async"
+    assert "input.value" in span.attributes
+    assert "output.value" in span.attributes
+    assert span.attributes["output.value"] == "6"
+
+
+@pytest.mark.asyncio
+async def test_traced_bare_async_function(setup_tracer):
+    """Test @traced without parentheses on an async function."""
+    exporter, provider = setup_tracer
+
+    @traced
+    async def sample_async_function(x, y):
+        return x * y
+
+    result = await sample_async_function(2, 3)
+    assert result == 6
+
+    provider.shutdown()
 
     await sleep(1)
     spans = exporter.get_exported_spans()
@@ -146,6 +195,77 @@ async def test_traced_async_generator_function(setup_tracer):
     assert "input.value" in span.attributes
     assert "output.value" in span.attributes
     assert span.attributes["output.value"] == "[0, 1, 2]"
+
+
+def test_traced_bare_generator_function(setup_tracer):
+    """Test @traced without parentheses on a generator function."""
+    exporter, provider = setup_tracer
+
+    @traced
+    def sample_generator_function(n):
+        for i in range(n):
+            yield i
+
+    results = list(sample_generator_function(3))
+    assert results == [0, 1, 2]
+
+    provider.shutdown()
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "sample_generator_function"
+    assert span.attributes["span_type"] == "function_call_generator_sync"
+    assert "input.value" in span.attributes
+    assert "output.value" in span.attributes
+    assert span.attributes["output.value"] == "[0, 1, 2]"
+
+
+@pytest.mark.asyncio
+async def test_traced_bare_async_generator_function(setup_tracer):
+    """Test @traced without parentheses on an async generator function."""
+    exporter, provider = setup_tracer
+
+    @traced
+    async def sample_async_generator_function(n):
+        for i in range(n):
+            yield i
+
+    results = [item async for item in sample_async_generator_function(3)]
+    assert results == [0, 1, 2]
+
+    provider.shutdown()
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "sample_async_generator_function"
+    assert span.attributes["span_type"] == "function_call_generator_async"
+    assert "input.value" in span.attributes
+    assert "output.value" in span.attributes
+    assert span.attributes["output.value"] == "[0, 1, 2]"
+
+
+def test_traced_bare_preserves_type_hints(setup_tracer):
+    """Test that @traced without parentheses preserves function type hints and signature."""
+    exporter, provider = setup_tracer
+
+    @traced
+    def typed_function(x: int, y: str = "hello") -> bool:
+        return True
+
+    import inspect
+    from typing import get_type_hints
+
+    hints = get_type_hints(typed_function)
+    assert hints == {"x": int, "y": str, "return": bool}
+
+    sig = inspect.signature(typed_function)
+    assert list(sig.parameters.keys()) == ["x", "y"]
+    assert sig.parameters["x"].annotation is int
+    assert sig.parameters["y"].default == "hello"
+
+    provider.shutdown()
 
 
 def test_traced_with_basic_processors(setup_tracer):
