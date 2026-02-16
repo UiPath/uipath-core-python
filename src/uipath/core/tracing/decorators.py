@@ -4,7 +4,7 @@ import inspect
 import logging
 import random
 from functools import wraps
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, overload
 
 from opentelemetry import context as context_api
 from opentelemetry import trace
@@ -258,8 +258,25 @@ def _opentelemetry_traced(
     return decorator
 
 
+@overload
+def traced(func: Callable[..., Any], /) -> Callable[..., Any]: ...
+
+
+@overload
 def traced(
-    name: Optional[str] = None,
+    name: Optional[str] = ...,
+    run_type: Optional[str] = ...,
+    span_type: Optional[str] = ...,
+    input_processor: Optional[Callable[..., Any]] = ...,
+    output_processor: Optional[Callable[..., Any]] = ...,
+    hide_input: bool = ...,
+    hide_output: bool = ...,
+    recording: bool = ...,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]: ...
+
+
+def traced(
+    name: Optional[str | Callable[..., Any]] = None,
     run_type: Optional[str] = None,
     span_type: Optional[str] = None,
     input_processor: Optional[Callable[..., Any]] = None,
@@ -282,6 +299,12 @@ def traced(
         hide_output: If True, don't log any output data
         recording: If False, current span and all child spans are not captured
     """
+    # Handle @traced without parentheses: the decorated function
+    # is passed as the first positional argument (``name``).
+    _func: Optional[Callable[..., Any]] = None
+    if callable(name):
+        _func = name
+        name = None
 
     # Apply default processors selectively based on hide flags
     def _default_input_processor(inputs: Any) -> dict[str, str]:
@@ -317,6 +340,9 @@ def traced(
         decorated_func = tracer_impl(**supported_params)(func)
 
         return decorated_func
+
+    if _func is not None:
+        return decorator(_func)
 
     return decorator
 
