@@ -51,7 +51,6 @@ from .citation import (
     UiPathConversationCitationSourceUrl,
     UiPathConversationCitationStartEvent,
 )
-from .citation_parser import ParsedCitation, find_partial_tag_start, parse_citations
 from .content import (
     InlineOrExternal,
     UiPathContentPartInterrupted,
@@ -165,10 +164,6 @@ __all__ = [
     "UiPathConversationCitationSourceMedia",
     "UiPathConversationCitationSource",
     "UiPathConversationCitation",
-    # Citation Parser
-    "ParsedCitation",
-    "parse_citations",
-    "find_partial_tag_start",
     # Tool
     "UiPathConversationToolCallStartEvent",
     "UiPathConversationToolCallEndEvent",
