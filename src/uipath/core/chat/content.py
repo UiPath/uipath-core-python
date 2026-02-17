@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .citation import UiPathConversationCitation, UiPathConversationCitationEvent
+from .citation import (
+    UiPathConversationCitation,
+    UiPathConversationCitationData,
+    UiPathConversationCitationEvent,
+)
 from .error import UiPathConversationErrorEvent
 
 
@@ -86,17 +90,27 @@ class UiPathExternalValue(BaseModel):
 InlineOrExternal = UiPathInlineValue | UiPathExternalValue
 
 
-class UiPathConversationContentPart(BaseModel):
-    """Represents a single part of message content."""
+class UiPathConversationContentPartData(BaseModel):
+    """Represents the core data of a single part of message content."""
 
-    content_part_id: str = Field(..., alias="contentPartId")
     mime_type: str = Field(..., alias="mimeType")
     data: InlineOrExternal
-    citations: list[UiPathConversationCitation] | None = None
+    citations: Sequence[UiPathConversationCitationData]
     is_transcript: bool | None = Field(None, alias="isTranscript")
     is_incomplete: bool | None = Field(None, alias="isIncomplete")
     name: str | None = None
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class UiPathConversationContentPart(UiPathConversationContentPartData):
+    """Represents a single part of message content."""
+
+    content_part_id: str = Field(..., alias="contentPartId")
     created_at: str = Field(..., alias="createdAt")
     updated_at: str = Field(..., alias="updatedAt")
+
+    # Override to use full type
+    citations: Sequence[UiPathConversationCitation]
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
