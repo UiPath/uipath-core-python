@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from uipath.core.feature_flags import configure, get, is_enabled, reset
+from uipath.core.feature_flags import FeatureFlags
 from uipath.core.feature_flags.feature_flags import _parse_env_value
 
 if TYPE_CHECKING:
@@ -55,106 +55,113 @@ class TestParseEnvValue:
         assert _parse_env_value("gpt-4") == "gpt-4"
 
 
-class TestConfigure:
-    """Tests for configure / reset."""
+class TestConfigureFlags:
+    """Tests for configure_flags / reset_flags."""
 
     def setup_method(self) -> None:
-        reset()
+        FeatureFlags.reset_flags()
 
     def test_configure_sets_flags(self) -> None:
-        configure({"FeatureA": True, "FeatureB": "value"})
-        assert get("FeatureA") is True
-        assert get("FeatureB") == "value"
+        FeatureFlags.configure_flags({"FeatureA": True, "FeatureB": "value"})
+        assert FeatureFlags.get_flag("FeatureA") is True
+        assert FeatureFlags.get_flag("FeatureB") == "value"
 
     def test_configure_merges(self) -> None:
-        configure({"FeatureA": True})
-        configure({"FeatureB": False})
-        assert get("FeatureA") is True
-        assert get("FeatureB") is False
+        FeatureFlags.configure_flags({"FeatureA": True})
+        FeatureFlags.configure_flags({"FeatureB": False})
+        assert FeatureFlags.get_flag("FeatureA") is True
+        assert FeatureFlags.get_flag("FeatureB") is False
 
     def test_configure_overwrites(self) -> None:
-        configure({"FeatureA": True})
-        configure({"FeatureA": False})
-        assert get("FeatureA") is False
+        FeatureFlags.configure_flags({"FeatureA": True})
+        FeatureFlags.configure_flags({"FeatureA": False})
+        assert FeatureFlags.get_flag("FeatureA") is False
 
     def test_reset_clears_all(self) -> None:
-        configure({"FeatureA": True})
-        reset()
-        assert get("FeatureA") is None
+        FeatureFlags.configure_flags({"FeatureA": True})
+        FeatureFlags.reset_flags()
+        assert FeatureFlags.get_flag("FeatureA") is None
 
 
-class TestGet:
-    """Tests for get."""
+class TestGetFlag:
+    """Tests for get_flag."""
 
     def setup_method(self) -> None:
-        reset()
+        FeatureFlags.reset_flags()
 
     def test_returns_default_when_unset(self) -> None:
-        assert get("Missing") is None
+        assert FeatureFlags.get_flag("Missing") is None
 
     def test_returns_custom_default(self) -> None:
-        assert get("Missing", default="fallback") == "fallback"
+        assert FeatureFlags.get_flag("Missing", default="fallback") == "fallback"
 
     def test_returns_configured_value(self) -> None:
-        configure({"FeatureA": "hello"})
-        assert get("FeatureA") == "hello"
+        FeatureFlags.configure_flags({"FeatureA": "hello"})
+        assert FeatureFlags.get_flag("FeatureA") == "hello"
 
-    def test_env_var_overrides_configured(self, monkeypatch: "MonkeyPatch") -> None:
-        configure({"FeatureA": True})
+    def test_configured_value_takes_precedence_over_env_var(
+        self, monkeypatch: "MonkeyPatch"
+    ) -> None:
+        FeatureFlags.configure_flags({"FeatureA": True})
         monkeypatch.setenv("UIPATH_FEATURE_FeatureA", "false")
-        assert get("FeatureA") is False
+        assert FeatureFlags.get_flag("FeatureA") is True
 
-    def test_env_var_overrides_default(self, monkeypatch: "MonkeyPatch") -> None:
+    def test_env_var_used_when_nothing_configured(
+        self, monkeypatch: "MonkeyPatch"
+    ) -> None:
         monkeypatch.setenv("UIPATH_FEATURE_X", "custom")
-        assert get("X", default="other") == "custom"
+        assert FeatureFlags.get_flag("X", default="other") == "custom"
 
     def test_env_var_string_value(self, monkeypatch: "MonkeyPatch") -> None:
         monkeypatch.setenv("UIPATH_FEATURE_Model", "gpt-4-turbo")
-        assert get("Model") == "gpt-4-turbo"
+        assert FeatureFlags.get_flag("Model") == "gpt-4-turbo"
 
     def test_env_var_json_dict(self, monkeypatch: "MonkeyPatch") -> None:
         monkeypatch.setenv("UIPATH_FEATURE_Models", '{"gpt-4": true, "claude": false}')
-        assert get("Models") == {"gpt-4": True, "claude": False}
+        assert FeatureFlags.get_flag("Models") == {"gpt-4": True, "claude": False}
 
     def test_env_var_json_list(self, monkeypatch: "MonkeyPatch") -> None:
         monkeypatch.setenv("UIPATH_FEATURE_AllowedModels", '["gpt-4", "claude"]')
-        assert get("AllowedModels") == ["gpt-4", "claude"]
+        assert FeatureFlags.get_flag("AllowedModels") == ["gpt-4", "claude"]
 
 
-class TestIsEnabled:
-    """Tests for is_enabled."""
+class TestIsFlagEnabled:
+    """Tests for is_flag_enabled."""
 
     def setup_method(self) -> None:
-        reset()
+        FeatureFlags.reset_flags()
 
     def test_enabled_flag(self) -> None:
-        configure({"FeatureA": True})
-        assert is_enabled("FeatureA") is True
+        FeatureFlags.configure_flags({"FeatureA": True})
+        assert FeatureFlags.is_flag_enabled("FeatureA") is True
 
     def test_disabled_flag(self) -> None:
-        configure({"FeatureA": False})
-        assert is_enabled("FeatureA") is False
+        FeatureFlags.configure_flags({"FeatureA": False})
+        assert FeatureFlags.is_flag_enabled("FeatureA") is False
 
     def test_missing_flag_defaults_false(self) -> None:
-        assert is_enabled("Missing") is False
+        assert FeatureFlags.is_flag_enabled("Missing") is False
 
     def test_missing_flag_custom_default(self) -> None:
-        assert is_enabled("Missing", default=True) is True
+        assert FeatureFlags.is_flag_enabled("Missing", default=True) is True
 
     def test_truthy_string_is_enabled(self) -> None:
-        configure({"FeatureA": "some-value"})
-        assert is_enabled("FeatureA") is True
+        FeatureFlags.configure_flags({"FeatureA": "some-value"})
+        assert FeatureFlags.is_flag_enabled("FeatureA") is True
 
     def test_none_is_disabled(self) -> None:
-        configure({"FeatureA": None})
-        assert is_enabled("FeatureA") is False
+        FeatureFlags.configure_flags({"FeatureA": None})
+        assert FeatureFlags.is_flag_enabled("FeatureA") is False
 
-    def test_env_override_disables(self, monkeypatch: "MonkeyPatch") -> None:
-        configure({"FeatureA": True})
+    def test_configured_value_takes_precedence_over_env_var(
+        self, monkeypatch: "MonkeyPatch"
+    ) -> None:
+        FeatureFlags.configure_flags({"FeatureA": True})
         monkeypatch.setenv("UIPATH_FEATURE_FeatureA", "false")
-        assert is_enabled("FeatureA") is False
+        assert FeatureFlags.is_flag_enabled("FeatureA") is True
 
-    def test_env_override_enables(self, monkeypatch: "MonkeyPatch") -> None:
-        configure({"FeatureA": False})
+    def test_env_var_used_when_nothing_configured(
+        self, monkeypatch: "MonkeyPatch"
+    ) -> None:
         monkeypatch.setenv("UIPATH_FEATURE_FeatureA", "true")
-        assert is_enabled("FeatureA") is True
+        assert FeatureFlags.is_flag_enabled("FeatureA") is True

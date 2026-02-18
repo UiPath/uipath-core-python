@@ -3,11 +3,9 @@
 Local-only feature flag registry for the UiPath SDK.
 """
 
-from .feature_flags import configure, get, is_enabled, reset
+from .feature_flags import FeatureFlags, FeatureFlagsManager
 
 __all__ = [
-    "configure",
-    "get",
-    "is_enabled",
-    "reset",
+    "FeatureFlags",
+    "FeatureFlagsManager",
 ]
