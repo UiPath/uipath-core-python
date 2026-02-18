@@ -55,14 +55,21 @@ class UiPathConversationToolCallEvent(BaseModel):
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
 
-class UiPathConversationToolCall(BaseModel):
+class UiPathConversationToolCallData(BaseModel):
+    """Represents the core data of a call to an external tool or function within a message."""
+
+    name: str
+    input: dict[str, Any] | None = None
+    result: UiPathConversationToolCallResult | None = None
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class UiPathConversationToolCall(UiPathConversationToolCallData):
     """Represents a call to an external tool or function within a message."""
 
     tool_call_id: str = Field(..., alias="toolCallId")
-    name: str
-    input: dict[str, Any] | None = None
     timestamp: str | None = None
-    result: UiPathConversationToolCallResult | None = None
     created_at: str = Field(..., alias="createdAt")
     updated_at: str = Field(..., alias="updatedAt")
 

@@ -16,12 +16,16 @@ An exchange can include multiple messages (e.g. LLM streaming several outputs, o
 Exchanges are ordered within a conversation via conversation_sequence.
 """
 
-from typing import Any
+from typing import Any, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from .error import UiPathConversationErrorEvent
-from .message import UiPathConversationMessage, UiPathConversationMessageEvent
+from .message import (
+    UiPathConversationMessage,
+    UiPathConversationMessageData,
+    UiPathConversationMessageEvent,
+)
 
 
 class UiPathConversationExchangeStartEvent(BaseModel):
@@ -57,13 +61,23 @@ class UiPathConversationExchangeEvent(BaseModel):
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
 
-class UiPathConversationExchange(BaseModel):
+class UiPathConversationExchangeData(BaseModel):
+    """Represents the core data of a group of related messages (one turn of conversation)."""
+
+    messages: Sequence[UiPathConversationMessageData]
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class UiPathConversationExchange(UiPathConversationExchangeData):
     """Represents a group of related messages (one turn of conversation)."""
 
     exchange_id: str = Field(..., alias="exchangeId")
-    messages: list[UiPathConversationMessage]
     created_at: str = Field(..., alias="createdAt")
     updated_at: str = Field(..., alias="updatedAt")
     span_id: str | None = Field(None, alias="spanId")
+
+    # Override to use full type
+    messages: Sequence[UiPathConversationMessage]
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)

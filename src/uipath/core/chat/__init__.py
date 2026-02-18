@@ -43,6 +43,7 @@ from .async_stream import (
 )
 from .citation import (
     UiPathConversationCitation,
+    UiPathConversationCitationData,
     UiPathConversationCitationEndEvent,
     UiPathConversationCitationEvent,
     UiPathConversationCitationSource,
@@ -56,6 +57,7 @@ from .content import (
     UiPathContentPartInterrupted,
     UiPathConversationContentPart,
     UiPathConversationContentPartChunkEvent,
+    UiPathConversationContentPartData,
     UiPathConversationContentPartEndEvent,
     UiPathConversationContentPartEvent,
     UiPathConversationContentPartStartEvent,
@@ -70,6 +72,7 @@ from .error import (
 from .event import UiPathConversationEvent, UiPathConversationLabelUpdatedEvent
 from .exchange import (
     UiPathConversationExchange,
+    UiPathConversationExchangeData,
     UiPathConversationExchangeEndEvent,
     UiPathConversationExchangeEvent,
     UiPathConversationExchangeStartEvent,
@@ -79,6 +82,7 @@ from .interrupt import (
     UiPathConversationGenericInterruptEndEvent,
     UiPathConversationGenericInterruptStartEvent,
     UiPathConversationInterrupt,
+    UiPathConversationInterruptData,
     UiPathConversationInterruptEndEvent,
     UiPathConversationInterruptEvent,
     UiPathConversationInterruptStartEvent,
@@ -89,6 +93,7 @@ from .interrupt import (
 )
 from .message import (
     UiPathConversationMessage,
+    UiPathConversationMessageData,
     UiPathConversationMessageEndEvent,
     UiPathConversationMessageEvent,
     UiPathConversationMessageStartEvent,
@@ -103,6 +108,7 @@ from .session import (
 )
 from .tool import (
     UiPathConversationToolCall,
+    UiPathConversationToolCallData,
     UiPathConversationToolCallEndEvent,
     UiPathConversationToolCallEvent,
     UiPathConversationToolCallResult,
@@ -127,11 +133,13 @@ __all__ = [
     "UiPathConversationExchangeStartEvent",
     "UiPathConversationExchangeEndEvent",
     "UiPathConversationExchangeEvent",
+    "UiPathConversationExchangeData",
     "UiPathConversationExchange",
     # Message
     "UiPathConversationMessageStartEvent",
     "UiPathConversationMessageEndEvent",
     "UiPathConversationMessageEvent",
+    "UiPathConversationMessageData",
     "UiPathConversationMessage",
     # Interrupt
     "InterruptTypeEnum",
@@ -144,6 +152,7 @@ __all__ = [
     "UiPathConversationToolCallConfirmationInterruptEndEvent",
     "UiPathConversationGenericInterruptStartEvent",
     "UiPathConversationGenericInterruptEndEvent",
+    "UiPathConversationInterruptData",
     "UiPathConversationInterrupt",
     # Content
     "UiPathConversationContentPartChunkEvent",
@@ -151,6 +160,7 @@ __all__ = [
     "UiPathContentPartInterrupted",
     "UiPathConversationContentPartEndEvent",
     "UiPathConversationContentPartEvent",
+    "UiPathConversationContentPartData",
     "UiPathConversationContentPart",
     "UiPathInlineValue",
     "UiPathExternalValue",
@@ -163,12 +173,14 @@ __all__ = [
     "UiPathConversationCitationSourceUrl",
     "UiPathConversationCitationSourceMedia",
     "UiPathConversationCitationSource",
+    "UiPathConversationCitationData",
     "UiPathConversationCitation",
     # Tool
     "UiPathConversationToolCallStartEvent",
     "UiPathConversationToolCallEndEvent",
     "UiPathConversationToolCallEvent",
     "UiPathConversationToolCallResult",
+    "UiPathConversationToolCallData",
     "UiPathConversationToolCall",
     # Async Stream
     "UiPathConversationInputStreamChunkEvent",

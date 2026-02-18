@@ -66,13 +66,20 @@ UiPathConversationCitationSource = (
 )
 
 
-class UiPathConversationCitation(BaseModel):
-    """Represents a citation or reference inside a content part."""
+class UiPathConversationCitationData(BaseModel):
+    """Represents the core data of a citation or reference inside a content part."""
 
-    citation_id: str = Field(..., alias="citationId")
     offset: int
     length: int
     sources: list[UiPathConversationCitationSource]
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class UiPathConversationCitation(UiPathConversationCitationData):
+    """Represents a citation or reference inside a content part."""
+
+    citation_id: str = Field(..., alias="citationId")
     created_at: str = Field(..., alias="createdAt")
     updated_at: str = Field(..., alias="updatedAt")
 
