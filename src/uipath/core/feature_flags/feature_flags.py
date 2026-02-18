@@ -64,6 +64,7 @@ class FeatureFlagsManager:
     _flags: dict[str, Any]
 
     def __new__(cls) -> "FeatureFlagsManager":
+        """Return the singleton instance, creating it on first call."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._flags = {}
