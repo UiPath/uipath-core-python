@@ -86,6 +86,10 @@ def serialize_defaults(
     if hasattr(obj, "to_dict") and not isinstance(obj, type):
         return obj.to_dict()
 
+    # Handle objects with as_dict property (UiPathBaseRuntimeError)
+    if hasattr(obj, "as_dict") and not isinstance(obj, type):
+        return obj.as_dict
+
     # Handle dataclasses
     if is_dataclass(obj) and not isinstance(obj, type):
         return asdict(obj)
@@ -106,6 +110,10 @@ def serialize_defaults(
             )
         # Convert to list
         return list(obj)
+
+    # Handle exceptions
+    if isinstance(obj, Exception):
+        return str(obj)
 
     # Handle datetime objects
     if isinstance(obj, datetime):

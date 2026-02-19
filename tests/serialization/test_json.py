@@ -268,6 +268,20 @@ class TestSimpleSerializeDefaults:
         assert isinstance(parsed["point"], list)
         assert parsed["point"] == [10, 20]
 
+    def test_serializes_object_with_as_dict(self) -> None:
+        """Test object with as_dict property via json.dumps."""
+
+        class RuntimeLike:
+            @property
+            def as_dict(self) -> dict[str, Any]:
+                return {"host": "localhost", "port": 8080}
+
+        obj = RuntimeLike()
+        data = {"runtime": obj}
+        result = serialize_json(data)
+        parsed = json.loads(result)
+        assert parsed["runtime"] == {"host": "localhost", "port": 8080}
+
     def test_serializes_object_with_to_dict(self) -> None:
         """Test object with to_dict method via json.dumps."""
 
@@ -293,6 +307,14 @@ class TestSimpleSerializeDefaults:
         result = serialize_json(data)
         parsed = json.loads(result)
         assert parsed["obj"] == "custom_string"
+
+    def test_serializes_exception(self) -> None:
+        """Test Exception serialization via json.dumps."""
+        err = ValueError("something went wrong")
+        data = {"error": err}
+        result = serialize_json(data)
+        parsed = json.loads(result)
+        assert parsed["error"] == "something went wrong"
 
     def test_with_json_dumps(self) -> None:
         """Test integration with json.dumps()."""
@@ -325,6 +347,7 @@ class TestSimpleSerializeDefaults:
             "datetime": datetime(2024, 1, 1),
             "set": {1, 2, 3},
             "tuple": (4, 5, 6),
+            "error": ValueError("something failed"),
         }
 
         result = serialize_json(data)
@@ -336,6 +359,7 @@ class TestSimpleSerializeDefaults:
         assert "2024-01-01" in parsed["datetime"]
         assert set(parsed["set"]) == {1, 2, 3}
         assert parsed["tuple"] == [4, 5, 6]
+        assert parsed["error"] == "something failed"
 
     def test_with_list_of_pydantic_models(self) -> None:
         """Test with list of Pydantic models (common MCP scenario)."""
