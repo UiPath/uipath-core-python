@@ -1,6 +1,7 @@
 """Tests for serialization utilities."""
 
 import json
+import math
 from collections import namedtuple
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -12,6 +13,7 @@ import pytest
 from pydantic import BaseModel
 
 from uipath.core.serialization import serialize_json
+from uipath.core.serialization.json import _sanitize_nan
 
 
 def _has_tzdata() -> bool:
@@ -612,3 +614,95 @@ class TestSimpleSerializeDefaults:
 
         # Seventh sublist: Booleans and None
         assert parsed[6] == [True, False, None]
+
+
+class TestNanSanitization:
+    """Tests for NaN/Infinity sanitization in serialize_json."""
+
+    def test_nan_becomes_null(self) -> None:
+        result = serialize_json({"value": float("nan")})
+        parsed = json.loads(result)
+        assert parsed["value"] is None
+
+    def test_positive_infinity_becomes_null(self) -> None:
+        result = serialize_json({"value": float("inf")})
+        parsed = json.loads(result)
+        assert parsed["value"] is None
+
+    def test_negative_infinity_becomes_null(self) -> None:
+        result = serialize_json({"value": float("-inf")})
+        parsed = json.loads(result)
+        assert parsed["value"] is None
+
+    def test_normal_floats_preserved(self) -> None:
+        result = serialize_json({"value": 3.14, "zero": 0.0, "neg": -1.5})
+        parsed = json.loads(result)
+        assert parsed["value"] == 3.14
+        assert parsed["zero"] == 0.0
+        assert parsed["neg"] == -1.5
+
+    def test_nested_nan_in_dict(self) -> None:
+        data = {"outer": {"inner": float("nan"), "ok": 1.0}}
+        result = serialize_json(data)
+        parsed = json.loads(result)
+        assert parsed["outer"]["inner"] is None
+        assert parsed["outer"]["ok"] == 1.0
+
+    def test_nan_in_list(self) -> None:
+        data = [1.0, float("nan"), float("inf"), 3.0]
+        result = serialize_json(data)
+        parsed = json.loads(result)
+        assert parsed == [1.0, None, None, 3.0]
+
+    def test_nan_in_deeply_nested_structure(self) -> None:
+        data = {"a": [{"b": [float("nan"), {"c": float("inf")}]}]}
+        result = serialize_json(data)
+        parsed = json.loads(result)
+        assert parsed["a"][0]["b"][0] is None
+        assert parsed["a"][0]["b"][1]["c"] is None
+
+    def test_output_is_valid_json(self) -> None:
+        """Verify the output parses correctly with strict JSON parser."""
+        data = {
+            "nan": float("nan"),
+            "inf": float("inf"),
+            "neg_inf": float("-inf"),
+            "normal": 42.0,
+            "nested": [float("nan"), {"key": float("inf")}],
+        }
+        result = serialize_json(data)
+        # json.loads with default settings rejects NaN tokens
+        # so successful parse confirms valid JSON
+        parsed = json.loads(result, parse_constant=None)
+        assert isinstance(parsed, dict)
+
+    def test_non_float_types_unchanged(self) -> None:
+        data = {"str": "hello", "int": 42, "bool": True, "none": None}
+        result = serialize_json(data)
+        parsed = json.loads(result)
+        assert parsed == data
+
+    def test_sanitize_nan_preserves_tuple_as_list(self) -> None:
+        result = _sanitize_nan((1.0, float("nan"), 3.0))
+        assert result == [1.0, None, 3.0]
+
+    def test_empty_structures(self) -> None:
+        assert _sanitize_nan({}) == {}
+        assert _sanitize_nan([]) == []
+        assert _sanitize_nan(()) == []
+
+    def test_mixed_with_pydantic_model(self) -> None:
+        """NaN inside a dict alongside Pydantic models."""
+
+        class Score(BaseModel):
+            name: str
+            value: float
+
+        data = {
+            "model": Score(name="test", value=1.0),
+            "raw_nan": float("nan"),
+        }
+        result = serialize_json(data)
+        parsed = json.loads(result)
+        assert parsed["model"]["name"] == "test"
+        assert parsed["raw_nan"] is None

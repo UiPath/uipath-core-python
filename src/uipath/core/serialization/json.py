@@ -1,6 +1,7 @@
 """JSON serialization utilities for converting Python objects to JSON formats."""
 
 import json
+import math
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -123,11 +124,30 @@ def serialize_defaults(
     return str(obj)
 
 
+def _sanitize_nan(obj: Any) -> Any:
+    """Recursively replace NaN/Infinity floats with None for RFC 8259 compliance.
+
+    Python's json.dumps() outputs bare NaN/Infinity tokens which are invalid JSON.
+    Strict parsers (.NET, Go, Rust) reject these, causing downstream failures.
+    """
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: _sanitize_nan(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_nan(item) for item in obj]
+    return obj
+
+
 def serialize_json(obj: Any) -> str:
     """Serialize Python object to JSON string.
 
     This is a convenience function that wraps json.dumps() with serialize_defaults()
     as the default handler for non-JSON-serializable types.
+
+    NaN and Infinity float values are converted to null for RFC 8259 compliance.
 
     Args:
         obj: The object to serialize to JSON
@@ -147,4 +167,4 @@ def serialize_json(obj: Any) -> str:
         >>> serialize_json(task)
         '{"name": "Review PR", "created": "2024-01-15T10:30:00"}'
     """
-    return json.dumps(obj, default=serialize_defaults)
+    return json.dumps(_sanitize_nan(obj), default=serialize_defaults, allow_nan=False)
