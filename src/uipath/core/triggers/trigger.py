@@ -39,6 +39,7 @@ class UiPathResumeTriggerName(str, Enum):
     INDEX_INGESTION = "IndexIngestion"
     EXTRACTION = "Extraction"
     IXP_VS_ESCALATION = "IxpVsEscalation"
+    JOB_RAW = "JobRaw"
 
 
 class UiPathApiTrigger(BaseModel):
