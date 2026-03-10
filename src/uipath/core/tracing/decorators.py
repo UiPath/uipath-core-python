@@ -32,6 +32,8 @@ def _opentelemetry_traced(
     span_type: Optional[str] = None,
     input_processor: Optional[Callable[..., Any]] = None,
     output_processor: Optional[Callable[..., Any]] = None,
+    input_attributes_callable: Optional[Callable[..., dict[str, Any]]] = None,
+    output_attributes_callable: Optional[Callable[..., dict[str, Any]]] = None,
     recording: bool = True,
 ):
     """Default tracer implementation using OpenTelemetry.
@@ -105,6 +107,7 @@ def _opentelemetry_traced(
                     run_type=run_type,
                     span_type=span_type or "function_call_sync",
                     input_processor=input_processor,
+                    input_attributes_callable=input_attributes_callable,
                 )
 
                 # Execute the function
@@ -115,6 +118,7 @@ def _opentelemetry_traced(
                     span,
                     result=result,
                     output_processor=output_processor,
+                    output_attributes_callable=output_attributes_callable,
                 )
                 return result
             except Exception as e:
@@ -142,6 +146,7 @@ def _opentelemetry_traced(
                     run_type=run_type,
                     span_type=span_type or "function_call_async",
                     input_processor=input_processor,
+                    input_attributes_callable=input_attributes_callable,
                 )
 
                 # Execute the function
@@ -152,6 +157,7 @@ def _opentelemetry_traced(
                     span,
                     result=result,
                     output_processor=output_processor,
+                    output_attributes_callable=output_attributes_callable,
                 )
                 return result
             except Exception as e:
@@ -181,6 +187,7 @@ def _opentelemetry_traced(
                     run_type=run_type,
                     span_type=span_type or "function_call_generator_sync",
                     input_processor=input_processor,
+                    input_attributes_callable=input_attributes_callable,
                 )
 
                 # Execute the generator and collect outputs
@@ -195,6 +202,7 @@ def _opentelemetry_traced(
                     span,
                     result=outputs,
                     output_processor=output_processor,
+                    output_attributes_callable=output_attributes_callable,
                 )
             except Exception as e:
                 span.record_exception(e)
@@ -223,6 +231,7 @@ def _opentelemetry_traced(
                     run_type=run_type,
                     span_type=span_type or "function_call_generator_async",
                     input_processor=input_processor,
+                    input_attributes_callable=input_attributes_callable,
                 )
 
                 # Execute the generator and collect outputs
@@ -237,6 +246,7 @@ def _opentelemetry_traced(
                     span,
                     result=outputs,
                     output_processor=output_processor,
+                    output_attributes_callable=output_attributes_callable,
                 )
             except Exception as e:
                 span.record_exception(e)
@@ -281,6 +291,8 @@ def traced(
     span_type: Optional[str] = None,
     input_processor: Optional[Callable[..., Any]] = None,
     output_processor: Optional[Callable[..., Any]] = None,
+    input_attributes_callable: Optional[Callable[..., dict[str, Any]]] = None,
+    output_attributes_callable: Optional[Callable[..., dict[str, Any]]] = None,
     hide_input: bool = False,
     hide_output: bool = False,
     recording: bool = True,
@@ -327,6 +339,8 @@ def traced(
         "span_type": span_type,
         "input_processor": input_processor,
         "output_processor": output_processor,
+        "input_attributes_callable": input_attributes_callable,
+        "output_attributes_callable": output_attributes_callable,
         "recording": recording,
     }
 
